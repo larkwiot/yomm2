@@ -68,16 +68,18 @@ size_t random_mark;
 using ptr_type = void (*)();
 
 struct Calls {
-    ptr_type baseline, virtual_function, uni_method;
+    ptr_type baseline, virtual_function, uni_method, uni_method_with_cache;
 
     template<class C>
     static void collect(Calls* iter) {
         std::cout << typeid(C).name() << "\n";
-        *iter = Calls{C::baseline, C::virtual_function, C::uni_method};
+        *iter = Calls{
+            C::baseline, C::virtual_function, C::uni_method,
+            C::uni_method_with_cache};
     }
 };
 
-enum { NH = 5 };
+enum { NH = 20 };
 Calls calls[NH];
 
 template<template<typename> typename Inheritance, size_t... ints>
@@ -90,19 +92,86 @@ use_classes<decltype(classes_aux<ordinary_base>(
     YOMM2_GENSYM;
 
 struct YOMM2_SYMBOL(times);
-template<typename M>
-using times = method<YOMM2_SYMBOL(times), void(virtual_<M&>)>;
+template<typename M, typename Policy = policy::default_policy>
+using times = method<YOMM2_SYMBOL(times), void(virtual_<M&>), Policy>;
 
 template<typename T>
-void definition(T&) {}
+void definition(T&) {
+}
+
+template<typename>
+struct uni_method_tip;
+
+template<typename A, typename... As>
+struct uni_method_tip<types<A, As...>> {
+    template<typename T, typename... Ts>
+    static auto fn(const T&, const Ts&... args) {
+        return uni_method_tip<As...>::fn(args...);
+    }
+};
+
+template<typename A, typename... As>
+struct uni_method_tip<types<virtual_<A>, As...>> {
+    template<typename T, typename... Ts>
+    static auto fn(const T& arg, ...) {
+        return &typeid(arg);
+    }
+};
+
+template<typename T>
+struct uni_method_cache {
+    static const std::type_info* tip;
+    static void* pf;
+};
+
+template<typename T>
+const std::type_info* uni_method_cache<T>::tip;
+template<typename T>
+void* uni_method_cache<T>::pf;
+
+int hits, total;
+
+struct cache_policy : policy::default_policy {
+    template<typename Method, typename... T>
+    static void* resolve(const Method& method, T... args) {
+        if constexpr (Method::arity == 1) {
+            ++total;
+            auto tip =
+                uni_method_tip<typename Method::declared_argument_types>::fn(
+                    args...);
+            if (tip == uni_method_cache<Method>::tip) {
+                ++hits;
+                return uni_method_cache<Method>::pf;
+            } else {
+                auto pf = method.resolve(
+                    method.hash_table, method.hash.mult, method.hash.shift,
+                    method.slots_strides, args...);
+                uni_method_cache<Method>::tip = tip;
+                uni_method_cache<Method>::pf = pf;
+                return pf;
+            }
+        } else {
+            return method.resolve(
+                method.hash_table, method.hash.mult, method.hash.shift,
+                method.slots_strides, args...);
+        }
+    }
+};
 
 template<template<typename> typename Inheritance, size_t... ints>
 auto uni_definitions_aux(std::index_sequence<ints...> int_seq) -> std::tuple<
-    typename times<matrix<ints, Inheritance>>::template add_function<definition<dense_matrix<ints, Inheritance>>>...,
-    typename times<matrix<ints, Inheritance>>::template add_function<definition<diagonal_matrix<ints, Inheritance>>>...
->;
+    typename times<matrix<ints, Inheritance>>::template add_function<
+        definition<dense_matrix<ints, Inheritance>>>...,
+    typename times<matrix<ints, Inheritance>>::template add_function<
+        definition<diagonal_matrix<ints, Inheritance>>>...,
+    typename times<matrix<ints, Inheritance>, cache_policy>::
+        template add_function<definition<dense_matrix<ints, Inheritance>>>...,
+    typename times<matrix<ints, Inheritance>, cache_policy>::
+        template add_function<
+            definition<diagonal_matrix<ints, Inheritance>>>...>;
 
-decltype(uni_definitions_aux<ordinary_base>(std::make_index_sequence<NH>{})) YOMM2_GENSYM;
+decltype(uni_definitions_aux<ordinary_base>(
+    std::make_index_sequence<NH>{})) YOMM2_GENSYM;
 
 template<int N, template<typename> typename Inheritance>
 struct homogeneous_catalog {
@@ -140,6 +209,10 @@ struct homogeneous_catalog {
 
     static void uni_method() {
         times<matrix<N, Inheritance>>::fn(*instance.draw());
+    }
+
+    static void uni_method_with_cache() {
+        times<matrix<N, Inheritance>, cache_policy>::fn(*instance.draw());
     }
 };
 
@@ -179,6 +252,7 @@ int main(int argc, char** argv) {
     RUN(baseline);
     RUN(virtual_function);
     RUN(uni_method);
+    RUN(uni_method_with_cache);
 
     // //
     // ------------------------------------------------------------------------
@@ -206,6 +280,8 @@ int main(int argc, char** argv) {
 
     benchmark::Initialize(&argc, argv);
     benchmark::RunSpecifiedBenchmarks();
+
+    std::cout << (100. * hits / total) << "% hits\n";
 
     return 0;
 }
