@@ -16,8 +16,8 @@ namespace mp11 = boost::mp11;
 using ti_ptr = const std::type_info*;
 
 enum { TRACE_RUNTIME = 1, TRACE_CALLS = 2 };
-extern std::ostream* logs;
-extern unsigned trace_flags;
+yOMM2_API extern std::ostream* logs;
+yOMM2_API extern unsigned trace_flags;
 
 #if defined(YOMM2_TRACE) && (YOMM2_TRACE & 1)
 constexpr unsigned trace_enabled = YOMM2_TRACE;
