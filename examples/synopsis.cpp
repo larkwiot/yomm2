@@ -87,3 +87,11 @@ int main() {
     std::cout << "hector meets flipper: " << meet(*hector, *flipper)
               << "\n"; // ignore
 }
+
+void call_kick(Animal& a) {
+    kick(a);
+}
+
+void call_meet(Animal& a, Animal& b) {
+    meet(a, b);
+}

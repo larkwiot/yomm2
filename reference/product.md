@@ -17,7 +17,6 @@ consisting of the n-fold Cartesian product of the input lists.
 ## example
 
 ```c++
-
 #include <type_traits>
 #include <yorel/yomm2/core.hpp>
 #include <yorel/yomm2/templates.hpp>
@@ -41,6 +40,4 @@ static_assert(
             types<b, x>, types<b, y>, types<b, z>
         >
     >);
-
-
 ```

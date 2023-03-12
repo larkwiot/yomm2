@@ -19,7 +19,6 @@ Mark a method parameter as virtual.
 
 
 ```c++
-
 #include <yorel/yomm2/keywords.hpp>
 
 struct Animal {
@@ -35,5 +34,4 @@ declare_method(void, kick, (virtual_<const Animal*>));
 declare_method(void, kick, (virtual_<const Animal&>));
 declare_method(void, kick, (virtual_<std::shared_ptr<const Animal>>));
 declare_method(void, kick, (virtual_<const std::shared_ptr<const Animal>&>));
-
 ```

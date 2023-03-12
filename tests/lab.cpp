@@ -3,23 +3,64 @@
 // See accompanying file LICENSE_1_0.txt
 // or copy at http://www.boost.org/LICENSE_1_0.txt)
 
-#include <yorel/yomm2/cute.hpp>
-
 #include <iostream>
-#include <memory>
-#include <string>
+#include <type_traits>
 
-using yorel::yomm2::virtual_;
-using std::cout;
+void has_foo_helper(...);
 
-// register_class(classes);
+template<typename Object>
+auto has_foo_helper(Object* obj) -> decltype(obj->foo);
 
-// declare_method(return, name, (params));
+template<typename Object>
+constexpr bool has_foo =
+    std::is_same_v<decltype(has_foo_helper(std::declval<Object*>())), int>;
 
-// define_method(return, name, (params)) {
-// }
+struct Foo {
+    int foo;
+};
+
+struct Bar {};
+
+static_assert(has_foo<Foo>);
+static_assert(!has_foo<Bar>);
+
+template<bool>
+struct require_foo_impl;
+
+template<>
+struct require_foo_impl<false> {
+    template<typename Class>
+    struct crtp {
+        int foo;
+    };
+};
+
+template<>
+struct require_foo_impl<true> {
+    template<typename Class>
+    struct crtp {};
+};
+
+template<typename Class>
+using require_foo =
+    typename require_foo_impl<has_foo<Class>>::template crtp<Class>;
+
+struct Baz : require_foo<Baz> {
+};
+
+struct Foolish : require_foo<Foolish> {
+    int foo;
+};
+
+//static_assert(has_foo<Foolish>);
+static_assert(!has_foo<Baz>);
 
 int main() {
-    yorel::yomm2::update_methods();
-    return 0;
+    Baz baz;
+    baz.foo;
+    std::cout << sizeof(baz) << "\n";
+
+    Foolish foolish;
+    foolish.foo;
+    std::cout << sizeof(foolish) << "\n";
 }

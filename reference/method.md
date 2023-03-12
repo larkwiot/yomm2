@@ -159,7 +159,6 @@ make sense, see the example below.
 ## example
 
 ```c++
-
 #include <yorel/yomm2/core.hpp>
 #include <yorel/yomm2/symbols.hpp> // for YOMM2_GENSYM
 
@@ -214,5 +213,4 @@ BOOST_AUTO_TEST_CASE(call_method) {
     BOOST_TEST(pet::fn(*snoopy) == "wag tail");
     BOOST_TEST(pet::fn(*hector) == "wag tail");
 }
-
 ```

@@ -1,7 +1,7 @@
 #ifndef YOREL_YOMM2_DETAIL_INCLUDED
 #define YOREL_YOMM2_DETAIL_INCLUDED
 
-#include <yorel/yomm2/detail/chain.hpp>
+#include "yorel/yomm2/detail/chain.hpp"
 
 namespace yorel {
 namespace yomm2 {
@@ -15,12 +15,20 @@ namespace mp11 = boost::mp11;
 
 using ti_ptr = const std::type_info*;
 
+extern yOMM2_API error_handler_type error_handler;
+
+#ifdef NDEBUG
+constexpr bool debug = false;
+#else
+constexpr bool debug = true;
+#endif
+
 enum { TRACE_RUNTIME = 1, TRACE_CALLS = 2 };
 yOMM2_API extern std::ostream* logs;
 yOMM2_API extern unsigned trace_flags;
 
-#if defined(YOMM2_TRACE) && (YOMM2_TRACE & 1)
-constexpr unsigned trace_enabled = YOMM2_TRACE;
+#if defined(YOMM2_ENABLE_TRACE)
+constexpr unsigned trace_enabled = YOMM2_ENABLE_TRACE;
 #elif !defined(NDEBUG)
 constexpr unsigned trace_enabled = TRACE_RUNTIME;
 #else
@@ -48,20 +56,13 @@ inline trace_type<Flags>& operator<<(trace_type<Flags>& trace, T&& value) {
 union word {
     void* pf;
     const word* pw;
-    int i;
-    uintptr_t ul;
+    size_t i;
     const void* ti;
 };
 
-inline word make_word(int i) {
+inline word make_word(size_t i) {
     word w;
     w.i = i;
-    return w;
-}
-
-inline word make_word(uintptr_t value) {
-    word w;
-    w.ul = value;
     return w;
 }
 
@@ -114,6 +115,9 @@ template<typename Container>
 constexpr bool has_name_v =
     std::is_same_v<type_of_name_t<Container>, std::string_view>;
 
+// ----------
+// has_next_v
+
 void type_next(...);
 
 template<typename Container>
@@ -125,7 +129,31 @@ using type_next_t = decltype(type_next(std::declval<Container>()));
 template<typename Container, typename Next>
 constexpr bool has_next_v = std::is_same_v<type_next_t<Container>, Next>;
 
-extern yOMM2_API error_handler_type error_handler;
+// --------------
+// intrusive mode
+
+void type_mptr(...);
+
+template<typename Object>
+auto type_mptr(Object* obj) -> decltype(obj->yomm2_mptr());
+
+template<typename Object>
+using type_mptr_t = decltype(type_mptr(std::declval<Object*>()));
+
+template<typename Object>
+constexpr bool has_direct_mptr_v = std::is_same_v<type_mptr_t<Object>, word*>;
+
+template<typename Object>
+constexpr bool has_indirect_mptr_v = std::is_same_v<type_mptr_t<Object>, word**>;
+
+// -------------
+// hash function
+
+inline std::size_t hash(std::uintptr_t mult, std::size_t shift, const void* p) {
+    return static_cast<std::size_t>(
+        (mult * reinterpret_cast<std::uintptr_t>(const_cast<void*>(p))) >>
+        shift);
+}
 
 struct hash_function {
     std::uintptr_t mult;
@@ -138,20 +166,42 @@ struct hash_function {
     }
 };
 
-inline std::size_t hash(std::uintptr_t mult, std::size_t shift, const void* p) {
-    return static_cast<std::size_t>(
-        (mult * reinterpret_cast<std::uintptr_t>(const_cast<void*>(p))) >>
-        shift);
-}
+struct hash_table {
+    hash_function fn;
+    word* table;
+
+    const word* operator[](ti_ptr ti) const {
+        auto index = fn(ti);
+        auto mptr = table[index].pw;
+
+        if constexpr (debug) {
+            if (!mptr || table[-1].pw[index].ti != ti) {
+                unknown_class_error error;
+                error.ti = ti;
+                error_handler(error_type(error));
+                abort();
+            }
+        }
+
+        return mptr;
+    }
+};
+
+// ----------
+// class info
 
 struct class_info : static_chain<class_info>::static_link {
     detail::ti_ptr ti;
+    word** intrusive_mptr;
     const detail::ti_ptr *first_base, *last_base;
     const char* name() const {
         return ti->name();
     }
     bool is_abstract{false};
 };
+
+// -----------
+// method info
 
 struct method_info;
 
@@ -171,12 +221,8 @@ struct yOMM2_API method_info : static_chain<method_info>::static_link {
     void* ambiguous;
     void* not_implemented;
     const std::type_info* hash_factors_placement;
-
-    // Filled by 'runtime'. Keep them together, to fit in cache line. Also, put
-    // them at the end because method_info may be extended with more runtime
-    // info (see hash_factors_in_method).
-    detail::word* hash_table;
-    detail::word slots_strides; // slot 0, slot 1,  stride 1, slot 2, ...
+    size_t* slots_strides_p;
+    
 
     virtual void install_hash_factors(runtime&);
 
@@ -190,6 +236,9 @@ inline definition_info::~definition_info() {
         method->specs.remove(*this);
     }
 }
+
+template<typename T>
+constexpr bool is_policy_v = std::is_base_of_v<policy::abstract_policy, T>;
 
 template<bool, typename... Classes>
 struct split_policy_aux;
@@ -208,9 +257,8 @@ struct split_policy_aux<false, Classes...> {
 
 template<typename ClassOrPolicy, typename... Classes>
 struct split_policy
-    : split_policy_aux<
-          std::is_base_of_v<policy::abstract_policy, ClassOrPolicy>,
-          ClassOrPolicy, Classes...> {};
+    : split_policy_aux<is_policy_v<ClassOrPolicy>, ClassOrPolicy, Classes...> {
+};
 
 template<typename... Classes>
 using get_policy = typename split_policy<Classes...>::policy;
@@ -233,6 +281,9 @@ template<typename T>
 struct virtual_traits;
 
 template<typename T>
+struct virtual_traits<virtual_<T>> : virtual_traits<T> {};
+
+template<typename T>
 using polymorphic_type = typename virtual_traits<T>::polymorphic_type;
 
 template<typename B, typename D, typename R = D>
@@ -246,12 +297,11 @@ using dynamic_cast_t = std::enable_if_t<
 template<typename T>
 struct virtual_traits<T&> {
     using argument_type = T&;
-    using resolver_type = const T&;
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static auto key(resolver_type arg) {
-        return &typeid(arg);
+    static const T& ref(const T& arg) {
+        return arg;
     }
 
     template<class DERIVED>
@@ -268,12 +318,11 @@ struct virtual_traits<T&> {
 template<typename T>
 struct virtual_traits<const T&> {
     using argument_type = const T&;
-    using resolver_type = const T&;
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static auto key(resolver_type arg) {
-        return &typeid(arg);
+    static const T& ref(const T& arg) {
+        return arg;
     }
 
     template<class DERIVED>
@@ -290,12 +339,11 @@ struct virtual_traits<const T&> {
 template<typename T>
 struct virtual_traits<T&&> {
     using argument_type = T&&;
-    using resolver_type = const T&;
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static auto key(resolver_type arg) {
-        return &typeid(arg);
+    static const T& ref(const T& arg) {
+        return arg;
     }
 
     template<class DERIVED>
@@ -316,8 +364,8 @@ struct virtual_traits<T*> {
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static auto key(resolver_type arg) {
-        return &typeid(*arg);
+    static const T& ref(const T* arg) {
+        return *arg;
     }
 
     template<class DERIVED>
@@ -333,16 +381,42 @@ struct virtual_traits<T*> {
 
 template<typename T>
 struct resolver_type_impl {
-    using type = T;
+    using type = const T&;
+};
+
+template<typename T>
+struct resolver_type_impl<T*> {
+    using type = const T*;
+};
+
+template<typename T>
+struct resolver_type_impl<T&> {
+    using type = const T&;
+};
+
+template<typename T>
+struct resolver_type_impl<T&&> {
+    using type = const T&;
 };
 
 template<typename T>
 struct resolver_type_impl<virtual_<T>> {
-    using type = typename virtual_traits<T>::resolver_type;
+    using type = decltype(virtual_traits<T>::ref(std::declval<T>()));
 };
 
 template<typename T>
 using resolver_type = typename resolver_type_impl<T>::type;
+
+template<typename T>
+struct argument_traits {
+    static const T& ref(const T& arg) {
+        return arg;
+    }
+};
+
+template<typename T>
+struct argument_traits<virtual_<T>> : virtual_traits<T> {
+};
 
 template<typename T>
 struct shared_ptr_traits {
@@ -366,12 +440,11 @@ struct shared_ptr_traits<const std::shared_ptr<T>&> {
 template<typename T>
 struct virtual_traits<std::shared_ptr<T>> {
     using argument_type = std::shared_ptr<T>;
-    using resolver_type = const std::shared_ptr<T>&;
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static auto key(resolver_type arg) {
-        return &typeid(*arg);
+    static T& ref(const argument_type& arg) {
+        return *arg;
     }
 
     template<class DERIVED>
@@ -407,8 +480,8 @@ struct virtual_traits<const std::shared_ptr<T>&> {
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static auto key(resolver_type arg) {
-        return &typeid(*arg);
+    static const T& ref(argument_type arg) {
+        return *arg;
     }
 
     template<class DERIVED>
@@ -455,16 +528,6 @@ struct select_spec_polymorphic_type {
     using type = void;
 };
 
-template<typename T>
-struct universal_traits {
-    static auto key(...) {
-        return &typeid(T);
-    }
-};
-
-template<typename T>
-struct universal_traits<virtual_<T>> : virtual_traits<T> {};
-
 template<typename P, typename Q>
 struct select_spec_polymorphic_type<virtual_<P>, Q> {
     using type = polymorphic_type<Q>;
@@ -495,154 +558,62 @@ struct type_id_list<types<>> {
     static constexpr auto end = begin;
 };
 
-struct resolve_init {
-    const word* hash_table;
-    std::uintptr_t hash_mult;
-    std::size_t hash_shift;
-    word ss;
-};
-
-struct only_virtual_arg {
-    const word* dispatch;
-};
-
-struct next_virtual_arg {
-    const word* hash_table;
-    std::uintptr_t hash_mult;
-    std::size_t hash_shift;
-    const word* ssp;
-    const word* dispatch;
-};
-
-template<int Arity, typename T>
-struct resolve_arg {
-    resolve_arg(...) {
+template<typename ArgType, typename T>
+inline auto get_tip(const T& arg) {
+    if constexpr (is_virtual<ArgType>::value) {
+        return &typeid(virtual_traits<ArgType>::ref(arg));
+    } else {
+        return &typeid(arg);
     }
-};
-
-template<int Arity, typename T>
-struct resolve_arg<Arity, virtual_<T>> {
-    typename virtual_traits<T>::resolver_type arg;
-};
-
-template<typename Previous, int Arity, typename T>
-inline auto operator<<(Previous a, resolve_arg<Arity, T>) {
-    return a;
 }
 
-inline const word* get_mptr(
-    const word* hash_table, std::uintptr_t hash_mult, std::size_t hash_shift,
-    const std::type_info* ti) {
-    auto index = hash(hash_mult, hash_shift, ti);
-    auto mptr = hash_table[index].pw;
-#ifndef NDEBUG
-    if (!mptr || hash_table[-1].pw[index].ti != ti) {
-        unknown_class_error error;
-        error.ti = ti;
-        error_handler(error_type(error));
-        abort();
+inline void
+check_intrusive_ptr(const word* mptr, const hash_table& hash, ti_ptr key) {
+    if constexpr (debug) {
+        if (mptr != hash[key]) {
+            error_handler(intrusive_base_error{key});
+        }
     }
-#endif
+}
+
+template<typename Method, typename ArgType>
+inline auto get_mptr(const ArgType& arg) {
+    const word* mptr;
+    using policy = typename Method::policy_type;
+
+    if constexpr (has_indirect_mptr_v<ArgType>) {
+        mptr = *arg.yomm2_mptr();
+
+        if constexpr (debug) {
+            check_intrusive_ptr(
+                mptr, policy::template hash<Method>(), &typeid(arg));
+        }
+    } else if constexpr (has_direct_mptr_v<ArgType>) {
+        mptr = arg.yomm2_mptr();
+
+        if constexpr (debug) {
+            check_intrusive_ptr(
+                mptr, policy::template hash<Method>(), &typeid(arg));
+        }
+    } else {
+        auto key = &typeid(arg);
+
+        if constexpr (bool(trace_enabled & TRACE_CALLS)) {
+            call_trace << "  key = " << key;
+        }
+
+        mptr = policy::template hash<Method>()[key];
+    }
+
+    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
+        call_trace << " mptr = " << mptr;
+    }
+
     return mptr;
 }
 
-template<int Arity, typename T>
-inline auto
-operator<<(resolve_init a, const resolve_arg<Arity, virtual_<T>> b) {
-    // Get the method table.
-    auto key = virtual_traits<T>::key(b.arg);
-
-    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-        call_trace << "\n  key = " << key;
-    }
-
-    auto mptr = get_mptr(a.hash_table, a.hash_mult, a.hash_shift, key);
-
-    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-        call_trace << " mptr = " << mptr;
-    }
-
-    // For a multi-method, slots-strides contains a pointer to the successive
-    // slot-stride pairs, one pair for each virtual parameter.
-    auto ssp = a.ss.pw;
-    auto slot = ssp++->i;
-
-    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-        call_trace << " slot = " << slot;
-    }
-
-    // The first virtual parameter is special.  Since its stride is 1, there is
-    // no need to store it. Also, the method table contains a pointer into the
-    // multi-dimensional dispatch table, already resolved to the appropriate
-    // group.
-    auto dispatch = mptr[slot].pw;
-
-    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-        call_trace << " dispatch = " << dispatch;
-    }
-
-    return next_virtual_arg{
-        a.hash_table, a.hash_mult, a.hash_shift, ssp, dispatch};
-}
-
-template<int Arity, typename T>
-inline auto
-operator<<(next_virtual_arg a, const resolve_arg<Arity, virtual_<T>> b) {
-    // Get the method table.
-    auto key = virtual_traits<T>::key(b.arg);
-
-    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-        call_trace << "\n  key = " << key;
-    }
-
-    auto mptr = get_mptr(a.hash_table, a.hash_mult, a.hash_shift, key);
-
-    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-        call_trace << " mptr = " << mptr;
-    }
-
-    // Get the slot and stride for the virtual parameter (other than first).
-    auto ssp = a.ssp;
-    auto slot = ssp++->i;
-
-    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-        call_trace << " slot = " << slot;
-    }
-
-    auto stride = ssp++->i;
-
-    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-        call_trace << " stride = " << stride;
-    }
-
-    // The method table contains an index in this parameter's dimension.
-    auto dispatch = a.dispatch + mptr[slot].i * stride;
-
-    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-        call_trace << " dispatch = " << dispatch;
-    }
-
-    return next_virtual_arg{
-        a.hash_table, a.hash_mult, a.hash_shift, ssp, dispatch};
-}
-
-template<typename T>
-inline auto operator<<(resolve_init a, resolve_arg<1, virtual_<T>> b) {
-    // Get the method table.
-    auto key = virtual_traits<T>::key(b.arg);
-    auto mptr = get_mptr(a.hash_table, a.hash_mult, a.hash_shift, key);
-
-    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-        call_trace << "\n  key = " << key << " mptr = " << mptr
-                   << " slot = " << a.ss.i;
-    }
-
-    // Uni-methods are special, as there is no need to perform multi-dimensional
-    // indexing. Instead the method's slot in the method table contains a
-    // straight pointer to the function.  Just like member virtual methods,
-    // except that the position of the slot floats inside the table.
-    return only_virtual_arg{mptr + a.ss.i};
-}
+// --------
+// downcast
 
 template<typename T>
 struct downcast {
@@ -654,6 +625,9 @@ struct downcast {
 
 template<class B>
 struct downcast<virtual_<B>> : virtual_traits<B> {};
+
+// -------
+// wrapper
 
 template<typename, auto, typename>
 struct wrapper;

@@ -21,7 +21,6 @@ the template with the specified types.
 ## example
 
 ```c++
-
 #include <yorel/yomm2/core.hpp>
 #include <yorel/yomm2/templates.hpp>
 
@@ -38,5 +37,4 @@ static_assert(
         template_<std::pair>::fn<char, int>,
         std::pair<char, int>
     >);
-
 ```

@@ -16,7 +16,6 @@ to clash with other names in scope.
 ## example
 
 ```c++
-
 #include <yorel/yomm2/symbols.hpp>
 
 BOOST_AUTO_TEST_CASE(example) {
@@ -25,5 +24,4 @@ BOOST_AUTO_TEST_CASE(example) {
     BOOST_TEST(foo == 1);
     BOOST_TEST(YOMM2_SYMBOL(foo) == 2);
 }
-
 ```

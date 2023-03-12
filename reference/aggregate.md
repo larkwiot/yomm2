@@ -26,7 +26,6 @@ definitions.
 ## example
 
 ```c++
-
 using namespace yorel::yomm2;
 
 struct Animal { virtual ~Animal() {} };
@@ -37,5 +36,4 @@ struct Cat : Animal {};
 //     class_declaration<types<Animal>>,
 //     class_declaration<types<Dog, Animal>>,
 //     class_declaration<types<Cat, Animal>>
-
 ```

@@ -58,7 +58,6 @@ Given the following hierarchy:
 
 
 ```c++
-
 struct Animal {
     virtual ~Animal() {
     }
@@ -69,38 +68,31 @@ struct Omnivore : Herbivore, Carnivore {};
 struct Human : Omnivore {};
 struct Wolf : Omnivore {};
 struct Sheep : Herbivore {};
-
 ```
 
 All the classes can be registered with a single static object:
 
 ```c++
-
 // at file scope
 using yorel::yomm2::use_classes;
 use_classes<
     Animal, Herbivore, Carnivore, Omnivore, Human, Wolf, Sheep
 > YOMM2_GENSYM;
-
 ```
 
 Or, using either macro:
 
 ```c++
-
 register_classes(Animal, Herbivore, Carnivore, Omnivore, Human, Wolf, Sheep);
 YOMM2_CLASSES(Animal, Herbivore, Carnivore, Omnivore, Human, Wolf, Sheep);
-
 ```
 
 Classes can also be registered incrementally:
 
 ```c++
-
 use_classes<Animal, Herbivore, Carnivore> YOMM2_GENSYM;
 use_classes<Omnivore, Human, Wolf> YOMM2_GENSYM;
 use_classes<Sheep, Herbivore> YOMM2_GENSYM;
-
 ```
 
 
@@ -109,11 +101,9 @@ and `Wolf` derive from `Omnivore`.
 
 
 ```c++
-
 use_classes<Animal, Herbivore, Carnivore, Omnivore> YOMM2_GENSYM;
 use_classes<Human, Wolf> YOMM2_GENSYM;      // wrong!
 use_classes<Sheep, Herbivore> YOMM2_GENSYM; // ok
-
 ```
 
 

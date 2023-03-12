@@ -106,3 +106,7 @@ int main() {
 
     return 0;
 }
+
+auto call_fight(Character& character, Creature& creature, Device& device) {
+    return fight(character, creature, device);
+}

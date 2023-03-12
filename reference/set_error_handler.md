@@ -52,7 +52,6 @@ variant:
 
 
 ```c++
-
 #include <stdexcept>
 #include <yorel/yomm2/keywords.hpp>
 
@@ -100,6 +99,4 @@ BOOST_AUTO_TEST_CASE(set_error_handler_example) {
 
     BOOST_FAIL("did not throw");
 }
-
-
 ```

@@ -207,7 +207,7 @@ YOMM2_DEFINE(
 }
 
 inline const word* mptr(const context& t, const std::type_info* ti) {
-    return t.hash_table[t.hash(ti)].pw;
+    return t.hash[ti];
 }
 
 BOOST_AUTO_TEST_CASE(runtime_test) {
@@ -361,12 +361,12 @@ BOOST_AUTO_TEST_CASE(runtime_test) {
     rt.allocate_slots();
 
     {
-        const std::vector<int> expected = {1};
+        const std::vector<size_t> expected = {1};
         BOOST_TEST(expected == pay_method.slots);
     }
 
     {
-        const std::vector<int> expected = {0, 0};
+        const std::vector<size_t> expected = {0, 0};
         BOOST_TEST(expected == approve_method.slots);
     }
 
@@ -446,52 +446,52 @@ BOOST_AUTO_TEST_CASE(runtime_test) {
     }
 
     {
-        const std::vector<int> expected = {0};
+        const std::vector<size_t> expected = {0};
         BOOST_TEST(expected == role->mtbl);
     }
 
     {
-        const std::vector<int> expected = {1, 0};
+        const std::vector<size_t> expected = {1, 0};
         BOOST_TEST(expected == employee->mtbl);
     }
 
     {
-        const std::vector<int> expected = {2, 1};
+        const std::vector<size_t> expected = {2, 1};
         BOOST_TEST(expected == manager->mtbl);
     }
 
     {
-        const std::vector<int> expected = {3};
+        const std::vector<size_t> expected = {3};
         BOOST_TEST(expected == founder->mtbl);
     }
 
     {
-        const std::vector<int> expected = {0};
+        const std::vector<size_t> expected = {0};
         BOOST_TEST(expected == expense->mtbl);
     }
 
     {
-        const std::vector<int> expected = {1};
+        const std::vector<size_t> expected = {1};
         BOOST_TEST(expected == public_->mtbl);
     }
 
     {
-        const std::vector<int> expected = {1};
+        const std::vector<size_t> expected = {1};
         BOOST_TEST(expected == bus->mtbl);
     }
 
     {
-        const std::vector<int> expected = {1};
+        const std::vector<size_t> expected = {1};
         BOOST_TEST(expected == metro->mtbl);
     }
 
     {
-        const std::vector<int> expected = {2};
+        const std::vector<size_t> expected = {2};
         BOOST_TEST(expected == taxi->mtbl);
     }
 
     {
-        const std::vector<int> expected = {0};
+        const std::vector<size_t> expected = {0};
         BOOST_TEST(expected == jet->mtbl);
     }
 
@@ -499,7 +499,7 @@ BOOST_AUTO_TEST_CASE(runtime_test) {
     BOOST_TEST_REQUIRE(pay_Manager->info->next != nullptr);
     BOOST_TEST(*pay_Manager->info->next == pay_Employee->info->pf);
 
-    rt.find_hash_function(rt.classes, rt.ctx.hash, rt.metrics);
+    rt.find_hash_function(rt.classes, rt.ctx.hash.fn, rt.metrics);
     rt.install_gv();
 
     {
@@ -509,18 +509,15 @@ BOOST_AUTO_TEST_CASE(runtime_test) {
                            1       // ptr to control table
                            + rt.metrics.hash_table_size // mptr table
                            + rt.metrics.hash_table_size // control table
-                           + 15    // approve: 3 slots and 12 cells for dispatch table
+                           + 12    // approve: 3 slots and 12 cells for dispatch table
                            + 12);  // 3 mtbl of 2 cells for Roles + 6 mtbl of 1 cells for Expenses
         // clang-format on
 
         auto gv_iter =
-            test_policy::context.hash_table + 2 * rt.metrics.hash_table_size;
+            test_policy::context.hash.table + 2 * rt.metrics.hash_table_size;
         // no slots nor fun* for 1-method
 
         // approve
-        BOOST_TEST(gv_iter++->i == 0); // slot for approve/0
-        BOOST_TEST(gv_iter++->i == 0); // slot for approve/1
-        BOOST_TEST(gv_iter++->i == 4); // stride for approve/1
         // 12 fun*
         auto approve_dispatch_table = gv_iter;
         BOOST_TEST(std::equal(

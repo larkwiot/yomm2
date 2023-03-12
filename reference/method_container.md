@@ -32,7 +32,6 @@ the same namespace as the container itself.
 ## example
 
 ```c++
-
 #include <string>
 #include <yorel/yomm2/keywords.hpp>
 
@@ -81,7 +80,6 @@ BOOST_AUTO_TEST_CASE(example) {
     animal = &hector;
     BOOST_TEST(kick(animal) == "Hector barks and bites");
 }
-
 ```
  Also see the [containers example](../examples/containers), which uses
 multiple containers in multiple namespaces.

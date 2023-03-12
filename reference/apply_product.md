@@ -18,7 +18,6 @@ the n-fold Cartesian product of the input `types` lists.
 ## example
 
 ```c++
-
 #include <type_traits>
 #include <yorel/yomm2/core.hpp>
 #include <yorel/yomm2/templates.hpp>
@@ -49,6 +48,4 @@ static_assert(
             bin2<b, x>, bin2<b, y>, bin2<b, z>
         >
     >);
-
-
 ```

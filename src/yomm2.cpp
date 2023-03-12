@@ -24,10 +24,6 @@
 #include <utility>       // for pair
 #include <vector>        // for vector, vector<>:...
 
-#if defined(YOMM2_TRACE) && (YOMM2_TRACE & 1) || !defined(NDEBUG)
-    #include <iostream>
-#endif
-
 #include <boost/dynamic_bitset/dynamic_bitset.hpp> // for operator<<, dynam...
 
 #if defined(YOMM2_SHARED)
@@ -40,7 +36,12 @@
     #define yOMM2_API
 #endif
 
-#include <yorel/yomm2.hpp>
+#include <yorel/yomm2/core.hpp>
+
+#if defined(YOMM2_ENABLE_TRACE) && (YOMM2_ENABLE_TRACE & 1)
+    #include <iostream>
+#endif
+
 #include <yorel/yomm2/runtime.hpp>
 
 namespace yorel {
@@ -51,8 +52,8 @@ namespace detail {
 void method_info::install_hash_factors(runtime&) {
 }
 
-std::ostream* logs;
-unsigned trace_flags;
+yOMM2_API std::ostream* logs;
+yOMM2_API unsigned trace_flags;
 
 template<unsigned Flags>
 inline trace_type<Flags>& trace_type<Flags>::operator++() {
@@ -153,7 +154,7 @@ void runtime::update() {
     augment_methods();
     allocate_slots();
     build_dispatch_tables();
-    find_hash_function(classes, ctx.hash, metrics);
+    find_hash_function(classes, ctx.hash.fn, metrics);
     install_gv();
     optimize();
     print(metrics);
@@ -193,6 +194,7 @@ void runtime::augment_classes() {
             if (rtc == nullptr) {
                 rtc = &classes.emplace_back();
                 rtc->is_abstract = cr.is_abstract;
+                rtc->intrusive_mptr = cr.intrusive_mptr;
             }
 
             // In the unlikely case that a class does have more than one
@@ -305,24 +307,6 @@ void runtime::augment_classes() {
         }
     }
 }
-
-// void runtime::calculate_conforming_classes() {
-//     ++trace << "Conforming classes...\n";
-//     with_indent YOMM2_GENSYM(trace);
-
-//     for (auto& cls : classes) {
-//         if (cls.covariant_classes.empty()) {
-//             calculate_conforming_classes(cls);
-// #if YOMM2_TRACE
-//             ++trace << cls.info->name() << ":\n";
-//             with_indent YOMM2_GENSYM(trace);
-//             for (auto conf : cls.covariant_classes) {
-//                 ++trace << tip{conf->info->ti} << "\n";
-//             }
-// #endif
-//         }
-//     }
-// }
 
 void runtime::calculate_conforming_classes(rt_class& cls) {
     if (!cls.covariant_classes.empty()) {
@@ -899,7 +883,7 @@ void runtime::install_gv() {
         ctx.gv.emplace_back(make_word(nullptr));
 
         auto hash_table = ctx.gv.data() + 1;
-        ctx.hash_table = hash_table;
+        ctx.hash.table = hash_table;
 
         if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
             if (pass) {
@@ -925,12 +909,11 @@ void runtime::install_gv() {
                 }
             }
 
-            m.info->slots_strides.pw = ctx.gv.data() + ctx.gv.size();
             m.info->install_hash_factors(*this);
 
             if (m.info->arity() == 1) {
                 // Uni-methods just need an index in the method table.
-                m.info->slots_strides.i = m.slots[0];
+                *m.info->slots_strides_p = m.slots[0];
                 continue;
             }
 
@@ -943,11 +926,12 @@ void runtime::install_gv() {
 
             auto slot_iter = m.slots.begin();
             auto stride_iter = m.strides.begin();
-            ctx.gv.emplace_back(make_word(*slot_iter++));
+            auto offsets_iter = m.info->slots_strides_p;
+            *offsets_iter++ = *slot_iter++;
 
             while (slot_iter != m.slots.end()) {
-                ctx.gv.emplace_back(make_word(*slot_iter++));
-                ctx.gv.emplace_back(make_word(*stride_iter++));
+                *offsets_iter++ = *slot_iter++;
+                *offsets_iter++ = *stride_iter++;
             }
 
             if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
@@ -986,9 +970,12 @@ void runtime::install_gv() {
 
             if (pass) {
                 for (auto ti : cls.ti_ptrs) {
-                    auto index = ctx.hash(ti);
+                    auto index = ctx.hash.fn(ti);
                     hash_table[index].pw = cls.mptr;
                     control_table[index].ti = ti;
+                    if (cls.intrusive_mptr) {
+                        *cls.intrusive_mptr = cls.mptr;
+                    }
                 }
             }
         }
@@ -1019,7 +1006,7 @@ void runtime::optimize() {
 
                 if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
                     ++trace << "    " << cls->name() << " mtbl[" << slot
-                            << "] = gv+" << (pw - ctx.hash_table) << "\n";
+                            << "] = gv+" << (pw - ctx.hash.table) << "\n";
                 }
 
                 cls->mptr[slot].pw = pw;
@@ -1174,7 +1161,6 @@ context global_context::context;
 
 void hash_factors_in_method::method_info_type::install_hash_factors(
     runtime& rt) {
-    this->hash_table = rt.ctx.hash_table;
     this->hash = rt.ctx.hash;
 }
 

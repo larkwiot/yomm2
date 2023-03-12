@@ -47,3 +47,7 @@ if(${YOMM2_ENABLE_BENCHMARKS})
   add_executable(benchmarks benchmarks.cpp)
   target_link_libraries(benchmarks YOMM2::yomm2 benchmark::benchmark)
 endif()
+
+add_executable(intrusive intrusive.cpp)
+target_link_libraries(intrusive YOMM2::yomm2 ${CMAKE_THREAD_LIBS_INIT})
+add_test(NAME intrusive COMMAND intrusive)

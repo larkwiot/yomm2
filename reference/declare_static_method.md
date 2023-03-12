@@ -16,8 +16,6 @@ create functions that can be picked via ADL.
 ## example
 
 ```c++
-
-
 #include <yorel/yomm2/keywords.hpp>
 #include <string>
 
@@ -75,5 +73,4 @@ BOOST_AUTO_TEST_CASE(hate_adl) {
         BOOST_TEST(no_adl::speak(engineer) == "senior engineers hate ADL");
     }
 }
-
 ```

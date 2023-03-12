@@ -42,7 +42,6 @@ documentation of [`method_container`](method_container.md) for more information 
 ## example
 
 ```c++
-
 #include <string>
 #include <yorel/yomm2/keywords.hpp>
 
@@ -75,5 +74,4 @@ BOOST_AUTO_TEST_CASE(example) {
     animal = &hector;
     BOOST_TEST(kick(animal) == "bark and bite");
 }
-
 ```
