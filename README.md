@@ -1,10 +1,17 @@
-
-
 # YOMM2
 
 This library implements fast, open, multi-methods for C++17. It is strongly
 inspired by the papers by Peter Pirkelbauer, Yuriy Solodkyy, and Bjarne
 Stroustrup.
+- [YOMM2](#yomm2)
+  - [TL;DR](#tldr)
+  - [Open Methods in a Nutshell](#open-methods-in-a-nutshell)
+    - [Cross-cutting Concerns and the Expression Problem](#cross-cutting-concerns-and-the-expression-problem)
+    - [Multiple Dispatch](#multiple-dispatch)
+  - [Performance](#performance)
+  - [Building and Installing](#building-and-installing)
+  - [Going Further](#going-further)
+  - [Roadmap](#roadmap)
 
 ## TL;DR
 
@@ -160,21 +167,20 @@ define_method(
 Open methods are almost as fast as ordinary virtual member functions once you
 turn on optimization (-O2). With both clang and gcc, dispatching a call to a
 method with one virtual argument takes 15-30% more time than calling the
-equivalent virtual member function (unless the call goes through a virtual
-base, which requires a dynamic cast). It does not involve branching or
-looping, only a few memory reads (which the CPU can be parallelize), a
-multiplication, a bit shift, a final memory read, then an indirect call. If
-the body of the method does any amount of work, the difference is
-unnoticeable. See the implementation notes for benchmarks and assembly
-listings.
+equivalent virtual member function (unless the call goes through a virtual base,
+which requires a dynamic cast). It does not involve branching or looping, only a
+few memory reads (which the CPU can parallelize), a multiplication, a bit shift,
+a final memory read, then an indirect call. If the body of the method does any
+amount of work, the difference is unnoticeable. See the implementation notes for
+benchmarks and assembly listings.
 
 ## Building and Installing
 
 Make sure that you have the following dependencies:
 
-* a C++17 capable compiler
+* a C++17 capable optimising compiler
 
-* cmake version 3.20 or above
+* `cmake` version 3.20 or above
 
 Clone the repository:
 
@@ -192,6 +198,9 @@ cmake ..
 make
 ```
 
+By default, YOMM2 is built as a static library. It can also be built as a shared
+library by adding -DYOMM2_SHARED=1 to `cmake`.
+
 If you want to run the tests:
 
 ```
@@ -207,7 +216,7 @@ YOMM2 uses several Boost libraries:
 
 If these libraries are already available on your machine, and they can be found
 by `cmake`, they will be used. In this case, make sure that the pre-installed
-libraries are at version 1.65 or above. If Boost is not found, the latest
+libraries are at version 1.74 or above. If Boost is not found, the latest
 version will be downloaded, and the Boost headers mentioned in section (1) will
 be installed along YOMM2 (if you decide to `make install`).
 
@@ -263,4 +272,24 @@ The library comes with a series of examples:
 
 I presented the library at CppCon 2018. Here are [the video recording](https://www.youtube.com/watch?v=xkxo0lah51s) and [the slides](https://jll63.github.io/yomm2/slides/).
 
+## Roadmap
 
+YOMM2 has been stable (in the sense of being backward-compatible) for a years,
+but it is still evolving. Here are the items on which I intend to work in the
+future. No promises, no time table!
+
+* Speed up dispatch in presence of virtual inheritance.
+* Intrusive mode, &agrave; la YOMM11, for faster dispatch.
+* Fat pointers, carrying the method table pointer, for faster dispatch.
+* Static linking of dispatch data.
+* *Minimal* perfect hash tables as an option.
+* Multi-threaded hash search.
+* Make error handler a `std::function`.
+* Get closer to Stroustrup et al's papers (version 2.0):
+  * use covariant return types for disambiguation
+  * move support for `shared_ptr` and `unique_ptr` to an optional header
+* Write a series of articles (for ACCU?).
+
+If you have ideas, comments, suggestions...please do get in touch! If you use
+YOMM2, I would appreciate it if you take the time to send me a description of
+your use case(s), and links to the project(s), if they are publicly available.
