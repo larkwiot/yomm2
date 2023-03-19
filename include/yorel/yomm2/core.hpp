@@ -15,7 +15,6 @@
 
 #include <boost/mp11/algorithm.hpp>
 #include <boost/mp11/bind.hpp>
-#include <boost/type_traits/is_virtual_base_of.hpp>
 
 #if defined(YOMM2_SHARED)
     #if !defined(yOMM2_API)

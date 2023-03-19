@@ -12,10 +12,10 @@ struct indirect;
 template<
     class Class, class Indirection = direct,
     class Policy = policy::default_policy>
-struct base;
+struct root;
 
 template<class Class, class Policy>
-struct base<Class, direct, Policy> {
+struct root<Class, direct, Policy> {
     mptr_type YoMm2_S_mptr_{method_table<Class, Policy>};
 
     mptr_type yomm2_mptr() const {
@@ -30,7 +30,7 @@ struct base<Class, direct, Policy> {
 };
 
 template<class Class, class Policy>
-struct base<Class, indirect, Policy> {
+struct root<Class, indirect, Policy> {
     mptr_type* YoMm2_S_mptr_{&method_table<Class, Policy>};
 
     mptr_type* yomm2_mptr() const {
@@ -87,31 +87,6 @@ struct derived<Class, Base1, Bases...> {
 
     static decltype(Base1::yomm2_mptr(int())) yomm2_mptr(int);
 };
-
-template<typename Class>
-constexpr bool is_aware =
-    detail::has_direct_mptr_v<Class> || detail::has_indirect_mptr_v<Class>;
-
-template<bool IsAware>
-struct aware_impl;
-
-template<>
-struct aware_impl<false> {
-    template<
-        typename Class, typename Indirection = direct,
-        typename Policy = policy::default_policy>
-    using crtp = base<Class, Indirection, Policy>;
-};
-
-template<>
-struct aware_impl<true> {
-    template<typename Class>
-    using crtp = derived<Class>;
-};
-
-template<class Class, typename... Rest>
-using aware =
-    typename aware_impl<is_aware<Class>>::template crtp<Class, Rest...>;
 
 } // namespace yomm2
 } // namespace yorel

@@ -147,7 +147,6 @@ This was the recommended header before version 1.3.0. Includes
 
 | name                             | type           | purpose                                                                  |
 | -------------------------------- | -------------- | ------------------------------------------------------------------------ |
-| ->base                           | class template | helper for intrusive modes                                               |
 | ->class_declaration              | class template | declare a class and its bases                                            |
 | ->declare_method                 | macro          | declare a method                                                         |
 | ->declare_static_method          | macro          | declare a static method inside a class                                   |
@@ -157,26 +156,27 @@ This was the recommended header before version 1.3.0. Includes
 | ->direct                         | type           | tag for direct intrusive mode                                            |
 | ->error_handler_type             | type           | handler function                                                         |
 | ->error_type                     | variant        | object passed to error handler                                           |
-| ->indirect                       | type           | tag for indirect intrusive mode                                          |
 | ->friend_method                  | macro          | make a method in a container, or the entire container, a friend          |
 | ->hash_search_error              | class          | failure to find a hash function for registered classes                   |
+| ->indirect                       | type           | tag for indirect intrusive mode                                          |
 | ->method                         | class template | implements a method                                                      |
 | ->method_call_error              | class          | information about a failed method call                                   |
 | ->method_call_error_handler      | type           | the type of a function called when a method call fails                   |
 | ->method_container               | macro          | declare a method definition container                                    |
-| ->method_table                   | template       | method table                                                             |
 | ->method_definition              | macro          | retrieve a definition from a container                                   |
+| ->method_table                   | template       | method table                                                             |
 | ->mptr_type                      | type           | method table pointer                                                     |
-| ->register_class                 | macro          | register a class and its bases                                           |
+| ->register_class                 | macro          | register a class and its bases (deprecated)                              |
 | ->register_classes               | macro          | register classes and their inheritance relationships                     |
 | ->resolution_error               | class          | method call does not resolve to exactly one definition                   |
+| ->root                           | class template | helper for intrusive modes                                               |
 | ->set_error_handler              | function       | set the function called for all errors                                   |
 | ->set_method_call_error_handler  | function       | set function to call when a method call fails                            |
 | ->unknown_class_error            | class          | class used in method declaration, definition, or call was not registered |
 | ->update_methods                 | function       | set up dispatch tables                                                   |
 | ->use_classes                    | class template | register classes and their inheritance relationships                     |
 | ->virtual_                       | class template | mark a method parameter as virtual                                       |
-| ->YOMM2_CLASS                    | macro          | same as `register_class`                                                 |
+| ->YOMM2_CLASS                    | macro          | same as `register_class` (deprecated)                                    |
 | ->YOMM2_CLASSES                  | macro          | same as `register_classes`                                               |
 | ->YOMM2_DECLARE                  | macro          | same as `declare_method`                                                 |
 | ->YOMM2_DECLARE_METHOD_CONTAINER | macro          | same as `method_container`                                               |

@@ -65,13 +65,13 @@ using policies = types<hash_factors_in_globals, hash_factors_in_method>;
 struct ordinary_base {
     static const char* name() { return "ordinary_base"; }
     template<class Base>
-    struct base : Base {};
+    struct root : Base {};
 };
 
 struct virtual_base {
     static const char* name() { return "virtual_base"; }
     template<class Base>
-    struct base : virtual Base {};
+    struct root : virtual Base {};
 };
 
 using inheritance_types = types<ordinary_base, virtual_base>;
@@ -120,7 +120,7 @@ struct virtual_dispatch {
     static constexpr auto name() { return "virtual_function"; };
 
     template<typename Class>
-    using base = empty_class<Class>;
+    using root = empty_class<Class>;
     template<typename Class>
     using derived = empty_class<Class>;
 
@@ -197,7 +197,7 @@ struct orthogonal_dispatch : method_dispatch {
     static constexpr const char* name();
 
     template<typename Class>
-    using base = empty_class<Class>;
+    using root = empty_class<Class>;
     template<typename Class>
     using derived = empty_class<Class>;
     using policy = Policy;
@@ -217,7 +217,7 @@ struct direct_intrusive_dispatch : method_dispatch {
     static constexpr auto name() { return "direct_intrusive"; };
 
     template<typename Class>
-    using base = yomm::base<Class, direct>;
+    using root = yomm::root<Class, direct>;
     template<typename Class>
     using derived = yomm::derived<Class>;
     using policy = default_policy;
@@ -227,7 +227,7 @@ struct indirect_intrusive_dispatch : method_dispatch {
     static constexpr auto name() { return "indirect_intrusive"; };
 
     template<typename Class>
-    using base = yomm::base<Class, indirect>;
+    using root = yomm::root<Class, indirect>;
     template<typename Class>
     using derived = yomm::derived<Class>;
     using policy = default_policy;
@@ -255,7 +255,7 @@ struct population : abstract_population, DispatchPolicy {
     using work = Work;
     using work_return_type = typename Work::return_type;
 
-    struct Animal : DispatchPolicy::template base<Animal> {
+    struct Animal : DispatchPolicy::template root<Animal> {
         virtual ~Animal() {}
         virtual work_return_type kick() = 0;
         virtual work_return_type meet(Animal& other) = 0;
@@ -264,7 +264,7 @@ struct population : abstract_population, DispatchPolicy {
     };
 
     struct Dog :
-        InheritancePolicy::template base<Animal>, 
+        InheritancePolicy::template root<Animal>, 
         DispatchPolicy::template derived<Dog> {
         virtual work_return_type kick() {
             return Work::fn(std::uintptr_t(this), std::uintptr_t(this));
@@ -284,7 +284,7 @@ struct population : abstract_population, DispatchPolicy {
     };
     
     struct Cat :
-        InheritancePolicy::template base<Animal>, 
+        InheritancePolicy::template root<Animal>, 
         DispatchPolicy::template derived<Cat> {
         virtual work_return_type kick() {
             return Work::fn(std::uintptr_t(this), std::uintptr_t(this));

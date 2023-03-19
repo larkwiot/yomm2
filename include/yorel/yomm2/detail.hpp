@@ -7,6 +7,13 @@ namespace yorel {
 namespace yomm2 {
 namespace detail {
 
+struct yomm2_end_of_dump {};
+
+template<typename T>
+struct dump_type {
+    static_assert(std::is_same_v<T, yomm2_end_of_dump>);
+};
+
 struct runtime;
 
 yOMM2_API void update_methods(catalog& cat, context& ht);
@@ -144,7 +151,8 @@ template<typename Object>
 constexpr bool has_direct_mptr_v = std::is_same_v<type_mptr_t<Object>, word*>;
 
 template<typename Object>
-constexpr bool has_indirect_mptr_v = std::is_same_v<type_mptr_t<Object>, word**>;
+constexpr bool has_indirect_mptr_v =
+    std::is_same_v<type_mptr_t<Object>, word**>;
 
 // -------------
 // hash function
@@ -222,7 +230,6 @@ struct yOMM2_API method_info : static_chain<method_info>::static_link {
     void* not_implemented;
     const std::type_info* hash_factors_placement;
     size_t* slots_strides_p;
-    
 
     virtual void install_hash_factors(runtime&);
 
@@ -277,6 +284,32 @@ struct next_ptr_t<R(T...)> {
 template<typename Method, typename Signature>
 inline typename next_ptr_t<Signature>::type next;
 
+template<typename B, typename D, typename = void>
+struct optimal_cast_impl {
+    static constexpr bool requires_dynamic_cast = true;
+    static D fn(B obj) {
+        return dynamic_cast<D>(obj);
+    }
+};
+
+template<typename B, typename D>
+struct optimal_cast_impl<
+    B, D, std::void_t<decltype(static_cast<D>(std::declval<B>()))>> {
+    static constexpr bool requires_dynamic_cast = false;
+    static D fn(B obj) {
+        return static_cast<D>(obj);
+    }
+};
+
+template<class D, class B>
+decltype(auto) optimal_cast(B&& obj) {
+    return optimal_cast_impl<B, D>::fn(std::forward<B>(obj));
+}
+
+template<class D, class B>
+constexpr bool requires_dynamic_cast =
+    optimal_cast_impl<B, D>::requires_dynamic_cast;
+
 template<typename T>
 struct virtual_traits;
 
@@ -286,17 +319,8 @@ struct virtual_traits<virtual_<T>> : virtual_traits<T> {};
 template<typename T>
 using polymorphic_type = typename virtual_traits<T>::polymorphic_type;
 
-template<typename B, typename D, typename R = D>
-using static_cast_t = std::enable_if_t<
-    !boost::is_virtual_base_of<B, polymorphic_type<D>>::value, R>;
-
-template<class B, class D, typename R = D>
-using dynamic_cast_t = std::enable_if_t<
-    boost::is_virtual_base_of<B, polymorphic_type<D>>::value, R>;
-
 template<typename T>
 struct virtual_traits<T&> {
-    using argument_type = T&;
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
@@ -304,41 +328,14 @@ struct virtual_traits<T&> {
         return arg;
     }
 
-    template<class DERIVED>
-    static static_cast_t<polymorphic_type, DERIVED> cast(T& obj) {
-        return static_cast<DERIVED>(obj);
-    }
-
-    template<class DERIVED>
-    static dynamic_cast_t<polymorphic_type, DERIVED> cast(T& obj) {
-        return dynamic_cast<DERIVED>(obj);
-    }
-};
-
-template<typename T>
-struct virtual_traits<const T&> {
-    using argument_type = const T&;
-    using polymorphic_type = std::remove_cv_t<T>;
-    static_assert(std::is_polymorphic_v<polymorphic_type>);
-
-    static const T& ref(const T& arg) {
-        return arg;
-    }
-
-    template<class DERIVED>
-    static static_cast_t<polymorphic_type, DERIVED> cast(const T& obj) {
-        return static_cast<DERIVED>(obj);
-    }
-
-    template<class DERIVED>
-    static dynamic_cast_t<polymorphic_type, DERIVED> cast(const T& obj) {
-        return dynamic_cast<DERIVED>(obj);
+    template<typename D>
+    static D& cast(T& obj) {
+        return optimal_cast<D&>(obj);
     }
 };
 
 template<typename T>
 struct virtual_traits<T&&> {
-    using argument_type = T&&;
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
@@ -346,21 +343,14 @@ struct virtual_traits<T&&> {
         return arg;
     }
 
-    template<class DERIVED>
-    static static_cast_t<polymorphic_type, DERIVED> cast(T&& obj) {
-        return static_cast<DERIVED>(obj);
-    }
-
-    template<class DERIVED>
-    static dynamic_cast_t<polymorphic_type, DERIVED> cast(T&& obj) {
-        return dynamic_cast<DERIVED>(obj);
+    template<typename D>
+    static D&& cast(T&& obj) {
+        return optimal_cast<D&&>(obj);
     }
 };
 
 template<typename T>
 struct virtual_traits<T*> {
-    using argument_type = T*;
-    using resolver_type = const T*;
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
@@ -368,14 +358,9 @@ struct virtual_traits<T*> {
         return *arg;
     }
 
-    template<class DERIVED>
-    static static_cast_t<polymorphic_type, DERIVED> cast(T* obj) {
-        return static_cast<DERIVED>(obj);
-    }
-
-    template<class DERIVED>
-    static dynamic_cast_t<polymorphic_type, DERIVED> cast(T* obj) {
-        return dynamic_cast<DERIVED>(obj);
+    template<typename D>
+    static D cast(T* obj) {
+        return optimal_cast<D>(obj);
     }
 };
 
@@ -412,11 +397,31 @@ struct argument_traits {
     static const T& ref(const T& arg) {
         return arg;
     }
+
+    #if defined(_MSC_VER) && (_MSC_VER / 100) <= 19
+
+    template<typename U>
+    static U& cast(U& obj) {
+        return obj;
+    }
+
+    template<typename U>
+    static U&& cast(U&& obj) {
+        return obj;
+    }
+
+    #else
+
+    template<typename U>
+    static decltype(auto) cast(U&& obj) {
+        return std::forward<U>(obj);
+    }
+
+    #endif
 };
 
 template<typename T>
-struct argument_traits<virtual_<T>> : virtual_traits<T> {
-};
+struct argument_traits<virtual_<T>> : virtual_traits<T> {};
 
 template<typename T>
 struct shared_ptr_traits {
@@ -439,11 +444,10 @@ struct shared_ptr_traits<const std::shared_ptr<T>&> {
 
 template<typename T>
 struct virtual_traits<std::shared_ptr<T>> {
-    using argument_type = std::shared_ptr<T>;
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static T& ref(const argument_type& arg) {
+    static const T& ref(const std::shared_ptr<T>& arg) {
         return *arg;
     }
 
@@ -457,30 +461,26 @@ struct virtual_traits<std::shared_ptr<T>> {
         static_assert(std::is_class_v<
                       typename shared_ptr_traits<DERIVED>::polymorphic_type>);
     }
-
     template<class DERIVED>
-    static static_cast_t<polymorphic_type, DERIVED> cast(argument_type obj) {
+    static auto cast(const std::shared_ptr<T>& obj) {
         check_cast<DERIVED>();
-        return std::static_pointer_cast<
-            typename shared_ptr_traits<DERIVED>::polymorphic_type>(obj);
-    }
 
-    template<class DERIVED>
-    static dynamic_cast_t<polymorphic_type, DERIVED> cast(argument_type obj) {
-        check_cast<DERIVED>();
-        return std::dynamic_pointer_cast<
-            typename shared_ptr_traits<DERIVED>::polymorphic_type>(obj);
+        if constexpr (requires_dynamic_cast<T*, DERIVED>) {
+            return std::dynamic_pointer_cast<
+                typename shared_ptr_traits<DERIVED>::polymorphic_type>(obj);
+        } else {
+            return std::static_pointer_cast<
+                typename shared_ptr_traits<DERIVED>::polymorphic_type>(obj);
+        }
     }
 };
 
 template<typename T>
 struct virtual_traits<const std::shared_ptr<T>&> {
-    using argument_type = const std::shared_ptr<T>&;
-    using resolver_type = const std::shared_ptr<T>&;
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static const T& ref(argument_type arg) {
+    static const T& ref(const std::shared_ptr<T>& arg) {
         return *arg;
     }
 
@@ -496,28 +496,18 @@ struct virtual_traits<const std::shared_ptr<T>&> {
     }
 
     template<class DERIVED>
-    static static_cast_t<
-        polymorphic_type, DERIVED,
-        std::shared_ptr<typename shared_ptr_traits<DERIVED>::polymorphic_type>>
-    cast(argument_type obj) {
+    static auto cast(const std::shared_ptr<T>& obj) {
         check_cast<DERIVED>();
-        return std::static_pointer_cast<
-            typename shared_ptr_traits<DERIVED>::polymorphic_type>(obj);
-    }
 
-    template<class DERIVED>
-    static dynamic_cast_t<
-        polymorphic_type, DERIVED,
-        std::shared_ptr<typename shared_ptr_traits<DERIVED>::polymorphic_type>>
-    cast(argument_type obj) {
-        check_cast<DERIVED>();
-        return std::dynamic_pointer_cast<
-            typename shared_ptr_traits<DERIVED>::polymorphic_type>(obj);
+        if constexpr (requires_dynamic_cast<T*, DERIVED>) {
+            return std::dynamic_pointer_cast<
+                typename shared_ptr_traits<DERIVED>::polymorphic_type>(obj);
+        } else {
+            return std::static_pointer_cast<
+                typename shared_ptr_traits<DERIVED>::polymorphic_type>(obj);
+        }
     }
 };
-
-template<typename T>
-using virtual_arg_t = typename virtual_traits<T>::argument_type;
 
 template<typename MethodArgList>
 using polymorphic_types = mp11::mp_transform<
@@ -612,20 +602,6 @@ inline auto get_mptr(const ArgType& arg) {
     return mptr;
 }
 
-// --------
-// downcast
-
-template<typename T>
-struct downcast {
-    template<typename U>
-    static U cast(T arg) {
-        return arg;
-    }
-};
-
-template<class B>
-struct downcast<virtual_<B>> : virtual_traits<B> {};
-
 // -------
 // wrapper
 
@@ -637,8 +613,18 @@ template<
     typename... SPEC_PARAM>
 struct wrapper<BASE_RETURN(BASE_PARAM...), SPEC, types<SPEC_PARAM...>> {
     static BASE_RETURN fn(remove_virtual<BASE_PARAM>... arg) {
-        return SPEC(downcast<BASE_PARAM>::template cast<SPEC_PARAM>(
-            std::forward<remove_virtual<BASE_PARAM>>(arg))...);
+        using base_type = mp11::mp_first<types<BASE_PARAM...>>;
+        using spec_type = mp11::mp_first<types<SPEC_PARAM...>>;
+        // dump_type<base_type> x1; // virtual_<Animal &>
+        //  dump_type<remove_virtual<base_type>> x2; // Animal &
+        //  dump_type<remove_virtual<spec_type>> x3; // Dog &
+        //  dump_type<typename argument_traits<base_type>::use_virtual_traits>
+        //  x; // true dump_type<typename
+        //  argument_traits<base_type>::traits_type> x; // virtual_traits<Animal
+        //  &> return SPEC(
+        //      argument_traits<BASE_PARAM>::template cast<SPEC_PARAM>(arg)...);
+        return SPEC(argument_traits<BASE_PARAM>::template cast<SPEC_PARAM>(
+            remove_virtual<BASE_PARAM>(arg))...);
     }
 };
 
@@ -656,7 +642,7 @@ struct member_function_wrapper;
 template<auto F, class R, class C, typename... Args>
 struct member_function_wrapper<F, R (C::*)(Args...)> {
     static R fn(C* this_, Args&&... args) {
-        return (this_->*F)(std::forward<Args>(args)...);
+        return (this_->*F)(args...);
     }
 };
 

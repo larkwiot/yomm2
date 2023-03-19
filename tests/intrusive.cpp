@@ -16,7 +16,7 @@
 using namespace yorel::yomm2;
 
 BOOST_AUTO_TEST_CASE(test_direct_intrusive_mptr) {
-    struct Animal : base<Animal, direct> {};
+    struct Animal : root<Animal, direct> {};
     static_assert(detail::has_direct_mptr_v<Animal>);
 
     struct Cat : Animal, derived<Cat> {};
@@ -29,7 +29,7 @@ BOOST_AUTO_TEST_CASE(test_direct_intrusive_mptr) {
 }
 
 BOOST_AUTO_TEST_CASE(test_indirect_intrusive_mptr) {
-    struct Animal : base<Animal, indirect> {};
+    struct Animal : root<Animal, indirect> {};
     static_assert(detail::has_indirect_mptr_v<Animal>);
 
     struct Cat : Animal, derived<Cat> {};
@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE(test_indirect_intrusive_mptr) {
 #ifndef NDEBUG
 namespace bad_intrusive_mptr {
 
-struct Animal : base<Animal, direct> {
+struct Animal : root<Animal, direct> {
     virtual ~Animal() {
     }
 };
@@ -85,14 +85,14 @@ BOOST_AUTO_TEST_CASE(test_bad_intrusive_mptr) {
 
 struct indirect_intrusive_mode {
     template<typename Class>
-    using base = base<Class, indirect>;
+    using root = root<Class, indirect>;
     template<typename Class>
     using derived = derived<Class>;
 };
 
 struct direct_intrusive_mode {
     template<typename Class>
-    using base = base<Class, direct>;
+    using root = root<Class, direct>;
     template<typename Class>
     using derived = derived<Class>;
 };
@@ -102,7 +102,7 @@ struct no_mptr {};
 
 struct orthogonal_mode {
     template<typename Class>
-    using base = no_mptr<Class>;
+    using root = no_mptr<Class>;
     template<typename Class>
     using derived = no_mptr<Class>;
 };
@@ -110,25 +110,25 @@ struct orthogonal_mode {
 template<typename Mode>
 struct class_set {
     template<typename Class>
-    using base = typename Mode::template base<Class>;
+    using root = typename Mode::template root<Class>;
     template<typename Class>
     using derived = typename Mode::template derived<Class>;
 
-    struct Character : base<Character> {
+    struct Character : root<Character> {
         virtual ~Character() {
         }
     };
 
     struct Warrior : Character, derived<Warrior> {};
 
-    struct Device : base<Device> {
+    struct Device : root<Device> {
         virtual ~Device() {
         }
     };
 
     struct Axe : Device, derived<Axe> {};
 
-    struct Creature : base<Creature> {
+    struct Creature : root<Creature> {
         virtual ~Creature() {
         }
     };
