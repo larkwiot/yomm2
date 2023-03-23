@@ -165,7 +165,6 @@ This was the recommended header before version 1.3.0. Includes
 | ->method_container               | macro          | declare a method definition container                                    |
 | ->method_definition              | macro          | retrieve a definition from a container                                   |
 | ->method_table                   | template       | method table                                                             |
-| ->mptr_type                      | type           | method table pointer                                                     |
 | ->register_class                 | macro          | register a class and its bases (deprecated)                              |
 | ->register_classes               | macro          | register classes and their inheritance relationships                     |
 | ->resolution_error               | class          | method call does not resolve to exactly one definition                   |

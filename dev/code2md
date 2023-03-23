@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import contextlib
 from pathlib import Path
 import re
 import sys
@@ -10,9 +11,9 @@ with open(sys.argv[1]) as fh:
     code = fh.read()
 
 out_path = Path(sys.argv[2]).absolute()
-out_path.chmod(0o600)
 
-mdgen.index_targets()
+with contextlib.suppress(FileNotFoundError):
+    out_path.chmod(0o600)
 
 with open(out_path, "w") as out:
     # print(f"{out_path}...")
@@ -35,7 +36,7 @@ with open(out_path, "w") as out:
 
     def md(text):
         text = re.sub(r"^// ?", "", text, flags=re.MULTILINE)
-        text = mdgen.replace_link(text, flags=re.MULTILINE)
+        text = mdgen.replace_md(text)
         print(text, file=out)
 
     for fragment in fragments:

@@ -9,14 +9,13 @@
 #ifdef YOMM2_MD
 <sub>/ ->home / ->reference </sub>
 
-**yorel::yomm2::root**<br>
-**yorel::yomm2::derived**<br>
-**yorel::yomm2::direct**<br>
-**yorel::yomm2::indirect**<br>
-<sub>defined in header<yorel/yomm2/core.hpp></sub>
-<!-- --> 
----
+entry: yorel::yomm2::root
+entry: yorel::yomm2::derived
+entry: yorel::yomm2::direct
+entry: yorel::yomm2::indirect
+headers: yorel/yomm2/core.hpp
 
+---
 ```c++
 struct direct;
 
@@ -91,7 +90,7 @@ void call_meet(Animal& a, Animal& b) {
 
 register_classes(Animal, Dog);
 
-BOOST_AUTO_TEST_CASE(direct_intrusive) {
+BOOST_AUTO_TEST_CASE(reference_direct_intrusive) {
     yorel::yomm2::update_methods();
     Dog dog;
     call_kick(dog);
@@ -197,14 +196,14 @@ define_method(void*, sell, (Dog & dog)) {
 
 #endif
 
-    BOOST_AUTO_TEST_CASE(direct_intrusive_mi) {
-        yomm2::update_methods();
-        Pitbull dog;
-        Animal& animal = dog;
-        Property& property = dog;
-        BOOST_TEST(pet(animal) == &dog);
-        BOOST_TEST(sell(property) == &dog);
-    }
+BOOST_AUTO_TEST_CASE(reference_direct_intrusive_mi) {
+    yomm2::update_methods();
+    Pitbull dog;
+    Animal& animal = dog;
+    Property& property = dog;
+    BOOST_TEST(pet(animal) == &dog);
+    BOOST_TEST(sell(property) == &dog);
+}
 
 } // namespace direct_intrusive
 

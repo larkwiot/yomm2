@@ -1,6 +1,7 @@
 
-<sub>/ [home](/README.md) / [reference](README.md) </sub>
-## yorel::yomm2::template_ <small>(experimental)</small>
+<sub>/ [home](/README.md) / [reference](/reference/README.md) </sub>
+
+**yorel::yomm2::template_** <small>(experimental)</small><br>
 <sub>defined in <yorel/yomm2/templates.hpp></sub>
 <!-- -->
 ---
@@ -19,6 +20,7 @@ struct template_ {
 the template with the specified types.
 
 ## example
+
 
 ```c++
 #include <yorel/yomm2/core.hpp>

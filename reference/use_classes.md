@@ -1,19 +1,20 @@
 
-<sub>/ [home](/README.md) / [reference](README.md) </sub>
-## yorel::yomm2::use_classes
+
+<sub>/ [home](/README.md) / [reference](/reference/README.md) </sub>
+
+**yomm2::use_classes**<br>
 <sub>defined in <yorel/yomm2/core.hpp></sub>
-## register_classes
-<sub>defined in <yorel/yomm2/cute.hpp>, also provided by
-<yorel/yomm2/keywords.hpp></sub>
-## YOMM2_CLASSES
-<sub>defined in <yorel/yomm2/macros.hpp></sub>, also provided by
-<yorel/yomm2/yomm2.hpp>
-<!-- -->
+<br>
+**register_classes**<br>
+<sub>defined in <yorel/yomm2/cute.hpp>, also provided by<<yorel/yomm2/keywords.hpp></sub>
+<br>
+**YOMM2_CLASSES**<br>
+<sub>defined in <yorel/yomm2/macros.hpp>, also provided by<yorel/yomm2/yomm2.hpp></sub>
+
 ---
 ```
 template<typename... Cs> struct use_classes;
 ```
-<!-- -->
 ---
 
 `use_classes`, instantiated as a [static object](static-object.md), registers
@@ -50,7 +51,7 @@ incrementally.
 ## macros
 
 `register_classes(...)`  and `YOMM2_CLASSES(...)` are simple wrappers around
-`use_classes`, both equivalent to `use_classes<...> YOMM2_GENSYM`.
+`use_classes`. Both are equivalent to `use_classes<...> YOMM2_GENSYM`.
 
 ## example
 
@@ -112,7 +113,5 @@ use_classes<Sheep, Herbivore> YOMM2_GENSYM; // ok
 |  | |
 |---|---|
 | [YOMM2_GENSYM](YOMM2_GENSYM.md) | generate a symbol
-
-
 
 

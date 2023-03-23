@@ -196,7 +196,7 @@ make
 ```
 
 By default, YOMM2 is built as a static library. It can also be built as a shared
-library by adding -DYOMM2_SHARED=1 to `cmake`.
+library by adding -DYOMM2_SHARED=1 to the `cmake` invocation.
 
 If you want to run the tests:
 
@@ -236,14 +236,16 @@ sudo make install
 # or:
 make install DESTDIR=/path/to/my/libs
 ```
-This will install the library and headers, as well as a CMake package
-configuration.
+Once this is done, link with `libyomm2.a` or `libyomm2.so`. For example:
 
-Make sure to add the install location to `CMAKE_PREFIX_PATH` so that you can use
-`find_package(YOMM2)` from your including project. For linking, the use
-`target_link_library(<your_target> YOMM2::yomm2)`. This will automatically add
-the necessary include directories, so this should be all you need to do to link
-to yomm2.
+```
+clang++ -std=c++17 synopsis.cpp -o synopsis -lyomm2
+```
+
+A CMake package configuration is also installed. If the install location is in
+`CMAKE_PREFIX_PATH`, you can use `find_package(YOMM2)` to locate YOMM2, then
+`target_link_libraries(<your_target> YOMM2::yomm2)` to add the necessary include
+paths and the library. See [this example](examples/cmakeyomm2).
 
 ## Going Further
 
@@ -285,8 +287,8 @@ future. No promises, no time table!
 * Get closer to Stroustrup et al's papers (version 2.0):
   * use covariant return types for disambiguation
   * move support for `shared_ptr` and `unique_ptr` to an optional header
-* Write a series of articles (for ACCU?).
-
-If you have ideas, comments, suggestions...please do get in touch! If you use
-YOMM2, I would appreciate it if you take the time to send me a description of
-your use case(s), and links to the project(s), if they are publicly available.
+* Go header-only.
+* 
+If you have ideas, comments, suggestions...get in touch! If you use YOMM2, I
+would appreciate it if you take the time to send me a description of your use
+case(s), and links to the project(s), if they are publicly available.

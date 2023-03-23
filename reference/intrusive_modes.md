@@ -1,14 +1,13 @@
 
-<sub>/ [home](/README.md) / [reference](README.md) </sub>
+<sub>/ [home](/README.md) / [reference](/reference/README.md) </sub>
 
 **yorel::yomm2::root**<br>
 **yorel::yomm2::derived**<br>
 **yorel::yomm2::direct**<br>
 **yorel::yomm2::indirect**<br>
-<sub>defined in header<yorel/yomm2/core.hpp></sub>
-<!-- --> 
----
+<sub>defined in <yorel/yomm2/core.hpp></sub>
 
+---
 ```c++
 struct direct;
 

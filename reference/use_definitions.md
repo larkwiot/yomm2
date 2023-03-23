@@ -1,8 +1,10 @@
 
-<sub>/ [home](/README.md) / [reference](README.md) </sub>
-## yorel::yomm2::use_definitions <small>(experimental)</small>
+
+<sub>/ [home](/README.md) / [reference](/reference/README.md) </sub>
+
+**use_definitions** <small>(experimental)</small><br>
 <sub>defined in <yorel/yomm2/templates.hpp></sub>
-<!-- -->
+
 ---
 ```
 template<template<typename...> typename Definition, typename LoL>
@@ -72,7 +74,7 @@ use_definitions<
     >
 > YOMM2_GENSYM; // 5
 
-BOOST_AUTO_TEST_CASE(example_use_definitions) {
+BOOST_AUTO_TEST_CASE(reference_use_definitions) {
     update_methods();
 
     const abstract_matrix& ordinary = ordinary_matrix();

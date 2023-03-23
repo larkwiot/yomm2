@@ -1,7 +1,8 @@
-<!-- target: YOMM2_DECLARE -->
+hrefs: YOMM2_DECLARE 
 <sub>/ ->home / ->reference </sub>
-## declare_method
-<sub>defined in <yorel/yomm2/cute.hpp>, also provided by <yorel/yomm2/keywords.hpp>
+
+entry: declare_method
+headers: yorel/yomm2/cute.hpp, yorel/yomm2/keywords.hpp
 
 ---
 ```
