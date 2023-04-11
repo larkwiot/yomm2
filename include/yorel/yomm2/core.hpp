@@ -477,11 +477,7 @@ struct class_declaration<types<Class, Bases...>, Policy> : detail::class_info {
         last_base = detail::type_id_list<bases_type>::end;
         Policy::catalog.classes.push_front(*this);
         is_abstract = std::is_abstract_v<class_type>;
-        if constexpr (
-            detail::has_indirect_mptr_v<class_type> ||
-            detail::has_direct_mptr_v<class_type>) {
-            intrusive_mptr = &method_table<class_type, Policy>;
-        }
+        intrusive_mptr = &method_table<class_type, Policy>;
     }
 
     ~class_declaration() {

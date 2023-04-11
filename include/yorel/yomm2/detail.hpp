@@ -615,14 +615,6 @@ struct wrapper<BASE_RETURN(BASE_PARAM...), SPEC, types<SPEC_PARAM...>> {
     static BASE_RETURN fn(remove_virtual<BASE_PARAM>... arg) {
         using base_type = mp11::mp_first<types<BASE_PARAM...>>;
         using spec_type = mp11::mp_first<types<SPEC_PARAM...>>;
-        // dump_type<base_type> x1; // virtual_<Animal &>
-        //  dump_type<remove_virtual<base_type>> x2; // Animal &
-        //  dump_type<remove_virtual<spec_type>> x3; // Dog &
-        //  dump_type<typename argument_traits<base_type>::use_virtual_traits>
-        //  x; // true dump_type<typename
-        //  argument_traits<base_type>::traits_type> x; // virtual_traits<Animal
-        //  &> return SPEC(
-        //      argument_traits<BASE_PARAM>::template cast<SPEC_PARAM>(arg)...);
         return SPEC(argument_traits<BASE_PARAM>::template cast<SPEC_PARAM>(
             remove_virtual<BASE_PARAM>(arg))...);
     }

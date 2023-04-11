@@ -144,11 +144,11 @@ In indirect mode, objects contains a pointer to a pointer to the method
 table. Because of the indirection, this makes method calls slightly slower, but
 `update_methods` can be safely called at any time.
 
-Intrusive mode works with multiple inheritance [^1], with the exception of
-repeated inheritance. If a class inherits from more than one YOMM2-aware
-classes, it must specify these classes as additional arguments to `derived`. It
-also needs to include a `using` directive to disambiguate the `yomm2_ptr`
-accessors.
+Intrusive mode works with multiple inheritance, but not with repeated
+inheritance, just like the orthogonal mode [^1]. If a class inherits from more
+than one YOMM2-aware classes, it must specify these classes as additional
+arguments to `derived`. It also needs to include a `using` directive to
+disambiguate the `yomm2_ptr` accessors.
 
 For example:
 
@@ -210,7 +210,7 @@ BOOST_AUTO_TEST_CASE(reference_direct_intrusive_mi) {
 #ifdef YOMM2_MD
 [^1]: Repeated inheritance _could_ be made to work with intrusive mode. This is
     not supported for two reasons: it would create inconsistencies in the way
-    methods are dispatched; and it would require classes to do a lot of
-    complicated, error-prone work.
+    methods are dispatched; and it would require classes to do complicated,
+    error-prone work.
 
 #endif
