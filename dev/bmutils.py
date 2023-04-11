@@ -19,7 +19,6 @@ axes = dict(
     ),
     arity=("arity_1", "arity_2"),
     inheritance=("ordinary_base", "virtual_base"),
-    work=("no_work", "some_work"),
 )
 
 
@@ -122,12 +121,12 @@ class Benchmarks(NamedTuple):
     data: dict
     context: Context
     benchmarks: list[Benchmark]
-    index: dict[str, dict[int, dict[str, Benchmark]]]
+    index: dict[str, Benchmark]
 
     @classmethod
     def parse(cls, data: dict):
         benchmarks: list[Benchmark] = []
-        index: dict[str, dict[int, dict[str, Benchmark]]] = {}
+        index: dict[str, Benchmark] = {}
         baseline: Benchmark = None
 
         for benchmark_data in data["benchmarks"]:
@@ -137,7 +136,7 @@ class Benchmarks(NamedTuple):
             setattr(
                 benchmark, benchmark_data["aggregate_name"], benchmark_data["cpu_time"]
             )
-            if "arity_0" in run_name:
+            if run_name == "baseline":
                 baseline = benchmark
                 continue
             if benchmark_data["aggregate_name"] == "mean":
@@ -147,7 +146,9 @@ class Benchmarks(NamedTuple):
             benchmark.mean -= baseline.mean
             benchmark.median -= baseline.median
             if benchmark.dispatch != "virtual_function":
-                benchmark.base = index["-".join(["virtual_function", *benchmark.tags[1:]])]
+                benchmark.base = index[
+                    "-".join(["virtual_function", *benchmark.tags[1:]])
+                ]
 
         return cls(data, Context.parse(data["context"]), benchmarks, index)
 
@@ -178,7 +179,7 @@ class Benchmarks(NamedTuple):
 
     def get(self, *tags: str) -> Benchmark:
         return self.index["-".join(map(str, tags))]
-    
+
     @property
     def all(self) -> Iterable[Benchmark]:
         return self.index.values()

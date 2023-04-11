@@ -5,7 +5,14 @@
 
 // clang-format off
 
+#if defined(__GNUC__) and !defined (__clang__)
+// Don't benchmark g++ until this is fixed:
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85282
+int main() {}
+#else
+
 #include <algorithm>
+#include <functional>
 #include <iostream>
 #include <random>
 #include <sstream>
@@ -19,10 +26,10 @@
 #include "benchmarks_parameters.hpp"
 
 using namespace yorel::yomm2;
-using namespace yorel::yomm2::policy;
+using yorel::yomm2::detail::dump_type;
 using namespace boost::mp11;
-
 namespace yomm = yorel::yomm2;
+namespace mp11 = boost::mp11;
 
 #if !defined(NDEBUG)
 enum { NH = 2 };
@@ -47,272 +54,318 @@ auto OBJECTS() {
 std::default_random_engine alloc_rnd;
 std::uniform_int_distribution<std::size_t> alloc_dist{0, 500};
 
-struct YOMM2_SYMBOL(kick);
-struct YOMM2_SYMBOL(meet);
-
-template<typename N, typename Inheritance, typename Work>
-struct Dog;
-
-template<typename N, typename Inheritance, typename Work>
-struct Cat;
-
-struct vfunc {};
-struct baseline {};
-template<size_t N>
-using int_ = std::integral_constant<size_t, N>;
-using policies = types<hash_factors_in_globals, hash_factors_in_method>;
-
-struct ordinary_base {
-    static const char* name() { return "ordinary_base"; }
-    template<class Base>
-    struct root : Base {};
+struct ordinary_inheritance {
+    static std::string name() { return "ordinary_base"; }
 };
 
-struct virtual_base {
-    static const char* name() { return "virtual_base"; }
-    template<class Base>
-    struct root : virtual Base {};
+struct virtual_inheritance {
+    static std::string name() { return "virtual_base"; }
 };
 
-using inheritance_types = types<ordinary_base, virtual_base>;
+using inheritance_types = std::tuple<ordinary_inheritance, virtual_inheritance>;
 
-struct no_work {
-    static const char* name() { return "no_work"; }
-
-    using return_type = void;
-    static void fn(std::uintptr_t, std::uintptr_t) {
-    }
+template<typename>
+struct orthogonal_base {
+    virtual ~orthogonal_base() {}
 };
 
-struct some_work {
-    static const char* name() { return "some_work"; }
-
-    static std::uintptr_t fn(std::uintptr_t a, std::uintptr_t b) {
-        auto x = 1;
-
-        for (int i = 0; i < 8; ++i) {
-            if (a & 1) {
-                x += 1;
-            }
-
-            if (b & 1) {
-                x *= 2;
-            }
-
-            a >>= 1;
-            b >>= 1;
-        }
-
-        return x;
-    }
-
-    using return_type = decltype(
-        fn(std::declval<std::uintptr_t>(), std::declval<std::uintptr_t>())
-    );
+template<typename>
+struct direct_intrusive_base {
+    virtual ~direct_intrusive_base() {}
+    void set_mptr(mptr_type mptr) { this->mptr = mptr; }
+    auto yomm2_mptr() const { return mptr; };
+    mptr_type mptr;
 };
 
-using work_types = types<no_work, some_work>;
+template<typename>
+struct indirect_intrusive_base {
+    virtual ~indirect_intrusive_base() {}
+    void set_mptr(mptr_type* mptr) { this->mptr = mptr; }
+    auto yomm2_mptr() const { return mptr; };
+    mptr_type* mptr;
+};
 
-template<typename Class>
-struct empty_class {};
+struct no_dispatch {
+    static std::string name() { return "baseline"; };
+};
 
 struct virtual_dispatch {
-    static constexpr auto name() { return "virtual_function"; };
-
-    template<typename Class>
-    using root = empty_class<Class>;
-    template<typename Class>
-    using derived = empty_class<Class>;
-
-    template<class population>
-    struct dispatcher {
-        static auto kick(typename population::Animal& object) {
-            return object.kick();
-        }
-        static auto meet(typename population::Animal& a, typename population::Animal& b) {
-            return a.meet(b);
-        }
-    };
+    static std::string name() { return "virtual_function"; };
 };
 
-struct method_dispatch {
-    template<class Population>
-    struct dispatcher {
-        using Animal = typename Population::Animal;
-        using Dog = typename Population::Dog;
-        using Cat = typename Population::Cat;
-        using Work = typename Population::work;
-        using Policy = typename Population::policy;
-        using work_return_type = typename Work::return_type;
-
-        template<typename...>
-        struct definition;
-
-        using kick_method = method<
-            Population,
-            work_return_type(virtual_<Animal&>),
-            Policy
-        >;
-
-        template<class Method, class T>
-        struct definition<Method, T> {
-            static auto fn(T& a) {
-                return Work::fn(std::uintptr_t(&a), std::uintptr_t(&a));
-            }
-        };
-
-        typename kick_method::template add_definition<definition<kick_method, Dog>> YOMM2_GENSYM;
-        typename kick_method::template add_definition<definition<kick_method, Cat>> YOMM2_GENSYM;
-
-        static auto kick(Animal& object) {
-            return kick_method::fn(object);
-        }
-
-        using meet_method = method<
-            Population,
-            work_return_type(virtual_<Animal&>, virtual_<Animal&>),
-            Policy
-        >;
-
-        template<class Method, class T, class U>
-        struct definition<Method, T, U> {
-            static auto fn(T& a, U& b) {
-                return Work::fn(std::uintptr_t(&a), std::uintptr_t(&a));
-            }
-        };
-
-        typename meet_method::template add_definition<definition<meet_method, Dog, Dog>> YOMM2_GENSYM;
-        typename meet_method::template add_definition<definition<meet_method, Dog, Cat>> YOMM2_GENSYM;
-        typename meet_method::template add_definition<definition<meet_method, Cat, Dog>> YOMM2_GENSYM;
-        typename meet_method::template add_definition<definition<meet_method, Cat, Cat>> YOMM2_GENSYM;
-
-        static auto meet(Animal& a, Animal& b) {
-            return meet_method::fn(a, b);
-        }
-    };
+struct hash_factors_in_globals {
+    using policy_type = policy::hash_factors_in_globals;
+    template<typename Inheritance> using base_type = orthogonal_base<Inheritance>;
+    static std::string name() { return "hash_factors_in_globals"; };
 };
 
-template<typename Policy>
-struct orthogonal_dispatch : method_dispatch {
-    static constexpr const char* name();
-
-    template<typename Class>
-    using root = empty_class<Class>;
-    template<typename Class>
-    using derived = empty_class<Class>;
-    using policy = Policy;
+struct hash_factors_in_method {
+    using policy_type = policy::hash_factors_in_method;
+    template<typename Inheritance> using base_type = orthogonal_base<Inheritance>;
+    static std::string name() { return "hash_factors_in_method"; };
 };
 
-template<>
-constexpr const char* orthogonal_dispatch<hash_factors_in_globals>::name() {
-    return "hash_factors_in_globals";
-}
-
-template<>
-constexpr const char* orthogonal_dispatch<hash_factors_in_method>::name() {
-    return "hash_factors_in_method";
-}
-
-struct direct_intrusive_dispatch : method_dispatch {
-    static constexpr auto name() { return "direct_intrusive"; };
-
-    template<typename Class>
-    using root = yomm::root<Class, direct>;
-    template<typename Class>
-    using derived = yomm::derived<Class>;
-    using policy = default_policy;
+struct direct_intrusive_dispatch {
+    using policy_type = policy::default_policy;
+    template<typename Inheritance> using base_type = direct_intrusive_base<Inheritance>;
+    static std::string name() { return "direct_intrusive"; };
 };
 
-struct indirect_intrusive_dispatch : method_dispatch {
-    static constexpr auto name() { return "indirect_intrusive"; };
-
-    template<typename Class>
-    using root = yomm::root<Class, indirect>;
-    template<typename Class>
-    using derived = yomm::derived<Class>;
-    using policy = default_policy;
+struct indirect_intrusive_dispatch {
+    using policy_type = policy::default_policy;
+    template<typename Inheritance> using base_type = indirect_intrusive_base<Inheritance>;
+    static std::string name() { return "indirect_intrusive"; };
 };
 
-using dispatch_types = types<
-    virtual_dispatch,
-    orthogonal_dispatch<hash_factors_in_globals>,
-    orthogonal_dispatch<hash_factors_in_method>,
+using method_dispatch_types = std::tuple<
+    hash_factors_in_globals,
+    hash_factors_in_method,
     direct_intrusive_dispatch,
     indirect_intrusive_dispatch
 >;
 
+using dispatch_types = mp11::mp_append<
+    std::tuple<
+        no_dispatch,
+        virtual_dispatch
+    >,
+    method_dispatch_types
+>;
+
+using arity_1 = std::integral_constant<size_t, 1>;
+using arity_2 = std::integral_constant<size_t, 2>;
+using arity_types = std::tuple<arity_1, arity_2>;
+
+struct abstract_population;
+std::vector<abstract_population*> populations;
+
 struct abstract_population {
     virtual void* allocate() = 0;
-    virtual void call_0() = 0;
-    virtual void call_1() = 0;
-    virtual void call_2() = 0;
+
+    using function_type = std::function<void()>;
+
+    function_type dispatchers
+        [mp_size<dispatch_types>::value]
+        [mp_size<arity_types>::value]
+        [mp_size<inheritance_types>::value];
+
+    template<typename Dispatch, typename Arity, typename Inheritance>
+    function_type& dispatcher() {
+        return dispatchers
+            [mp_find<dispatch_types, Dispatch>::value]
+            [Arity::value - 1]
+            [mp_find<inheritance_types, Inheritance>::value];
+    }
+
 };
 
-template<typename N, typename InheritancePolicy, typename DispatchPolicy, typename Work>
-struct population : abstract_population, DispatchPolicy {
-    struct Dog;
-    struct Cat;
-    using work = Work;
-    using work_return_type = typename Work::return_type;
+template<int I>
+using int_ = std::integral_constant<int, I>;
 
-    struct Animal : DispatchPolicy::template root<Animal> {
-        virtual ~Animal() {}
-        virtual work_return_type kick() = 0;
-        virtual work_return_type meet(Animal& other) = 0;
-        virtual work_return_type meet(Dog& other) = 0;
-        virtual work_return_type meet(Cat& other) = 0;
+template<typename N>
+struct population : abstract_population {
+    template<typename Base, int intermediate>
+    struct vfunc_intermediate;
+
+    template<int> struct intermediate;
+
+    struct vfunc_base {
+        virtual void fn() = 0;
+        virtual void fn(vfunc_base& other) = 0;
+        virtual void fn_dd(intermediate<0>&) = 0;
+        virtual void fn_dd(intermediate<1>&) = 0;
     };
 
-    struct Dog :
-        InheritancePolicy::template root<Animal>, 
-        DispatchPolicy::template derived<Dog> {
-        virtual work_return_type kick() {
-            return Work::fn(std::uintptr_t(this), std::uintptr_t(this));
-        }
+    struct vfunc_vbase {
+        virtual void v_fn() = 0;
+        virtual void v_fn(vfunc_vbase& other) = 0;
+        virtual void v_fn_dd(intermediate<0>&) = 0;
+        virtual void v_fn_dd(intermediate<1>&) = 0;
+    };
 
-        virtual work_return_type meet(Animal& other) {
-            return other.meet(*this);
-        }
+    struct base :
+        vfunc_base,
+        orthogonal_base<ordinary_inheritance>,
+        direct_intrusive_base<ordinary_inheritance>,
+        indirect_intrusive_base<ordinary_inheritance>,
+        virtual vfunc_vbase,
+        virtual orthogonal_base<virtual_inheritance>,
+        virtual direct_intrusive_base<virtual_inheritance>,
+        virtual indirect_intrusive_base<virtual_inheritance>
+    {
+    };
 
-        virtual work_return_type meet(Dog& other) {
-            return Work::fn(std::uintptr_t(this), std::uintptr_t(&other));
-        }
+    template<int>
+    struct intermediate : base {
+        void fn() override {}
+        void fn(vfunc_base& other) override { other.fn_dd(*this); }
+        void fn_dd(intermediate<0>&) override {}
+        void fn_dd(intermediate<1>&) override {}
 
-        virtual work_return_type meet(Cat& other) {
-            return Work::fn(std::uintptr_t(this), std::uintptr_t(&other));
+        void v_fn() override {}
+        void v_fn(vfunc_vbase& other) override { other.v_fn_dd(*this); }
+        void v_fn_dd(intermediate<0>&) override {}
+        void v_fn_dd(intermediate<1>&) override {}
+    };
+
+    using non_leaf_classes = types<
+        vfunc_base,
+        orthogonal_base<ordinary_inheritance>,
+        direct_intrusive_base<ordinary_inheritance>,
+        indirect_intrusive_base<ordinary_inheritance>,
+        vfunc_vbase,
+        orthogonal_base<virtual_inheritance>,
+        direct_intrusive_base<virtual_inheritance>,
+        indirect_intrusive_base<virtual_inheritance>,
+        base,
+        intermediate<0>, intermediate<1>
+    >;
+
+    template<typename>
+    struct leaf0 : intermediate<0> {
+        leaf0() {
+            this->direct_intrusive_base<ordinary_inheritance>::mptr = method_table<leaf0>;
+            this->direct_intrusive_base<virtual_inheritance>::mptr = method_table<leaf0>;
+            this->indirect_intrusive_base<ordinary_inheritance>::mptr = &method_table<leaf0>;
+            this->indirect_intrusive_base<virtual_inheritance>::mptr = &method_table<leaf0>;
         }
     };
+
+    template<typename>
+    struct leaf1 : intermediate<1> {
+        leaf1() {
+            this->direct_intrusive_base<ordinary_inheritance>::mptr = method_table<leaf1>;
+            this->direct_intrusive_base<virtual_inheritance>::mptr = method_table<leaf1>;
+            this->indirect_intrusive_base<ordinary_inheritance>::mptr = &method_table<leaf1>;
+            this->indirect_intrusive_base<virtual_inheritance>::mptr = &method_table<leaf1>;
+        }
+    };
+
+    static constexpr size_t num_leaf_classes = 10;
+
+    using leaf_classes = mp_rename<mp_append<
+        mp_transform<leaf0, mp_iota_c<num_leaf_classes / 2>>,
+        mp_transform<leaf1, mp_iota_c<(num_leaf_classes + 1) / 2>>
+    >, types>;
+
+    using classes = mp_append<non_leaf_classes, leaf_classes>;
+
+    use_classes<classes> YOMM2_GENSYM;
+
+    template<typename Base, typename Policy>
+    using method_1 = method<population, void(virtual_<Base&>), Policy>;
+
+    template<typename Base, typename Policy>
+    using method_2 = method<population, void(virtual_<Base&>, virtual_<Base&>), Policy>;
+
+    template<typename Dispatch, typename Inheritance>
+    struct methods {
+        using policy_type = typename Dispatch::policy_type;
+        using base_type = typename Dispatch::template base_type<Inheritance>;
+        using method1 = method<population, void(virtual_<base_type&>), policy_type>;
+        using method2 = method<population, void(virtual_<base_type&>, virtual_<base_type&>), policy_type>;
+
+        template<typename T> static void fn1(T&) {}
+        typename method1::template add_function<fn1<intermediate<0>>> YOMM2_GENSYM;
+        typename method1::template add_function<fn1<intermediate<1>>> YOMM2_GENSYM;
+
+        template<typename T, typename U> static void fn2(T&, U&) {}
+        typename method2::template add_function<fn2<intermediate<0>, intermediate<0>>> YOMM2_GENSYM;
+        typename method2::template add_function<fn2<intermediate<0>, intermediate<1>>> YOMM2_GENSYM;
+        typename method2::template add_function<fn2<intermediate<1>, intermediate<0>>> YOMM2_GENSYM;
+        typename method2::template add_function<fn2<intermediate<1>, intermediate<1>>> YOMM2_GENSYM;
+    };
+
+    mp_product<
+        methods,
+        method_dispatch_types,
+        inheritance_types
+    > YOMM2_GENSYM;
     
-    struct Cat :
-        InheritancePolicy::template root<Animal>, 
-        DispatchPolicy::template derived<Cat> {
-        virtual work_return_type kick() {
-            return Work::fn(std::uintptr_t(this), std::uintptr_t(this));
-        }
-
-        virtual work_return_type meet(Animal& other) {
-            return other.meet(*this);
-        }
-
-        virtual work_return_type meet(Dog& other) {
-            return Work::fn(std::uintptr_t(this), std::uintptr_t(&other));
-        }
-
-        virtual work_return_type meet(Cat& other) {
-            return Work::fn(std::uintptr_t(this), std::uintptr_t(&other));
+    template<typename Dispatch, typename Arity, typename Inheritance>
+    struct dispatch {
+        static void fn(base& a, base& b) {
+            if constexpr (Arity::value == 1) {
+                methods<Dispatch, Inheritance>::method1::fn(a);
+            } else {
+                static_assert(Arity::value == 2);
+                methods<Dispatch, Inheritance>::method2::fn(a, b);
+            }
         }
     };
 
-    use_classes<Animal, Dog, Cat> YOMM2_GENSYM;
+    template<>
+    struct dispatch<virtual_dispatch, arity_1, ordinary_inheritance> {
+        static void fn(base& a, base& b) {
+            a.fn();
+        }
+    };
 
-    using dispatcher = typename DispatchPolicy::template dispatcher<population>;
-    dispatcher YOMM2_GENSYM;
+    template<>
+    struct dispatch<virtual_dispatch, arity_1, virtual_inheritance> {
+        static void fn(base& a, base& b) {
+            a.v_fn();
+        }
+    };
+
+    template<>
+    struct dispatch<virtual_dispatch, arity_2, ordinary_inheritance> {
+        static void fn(base& a, base& b) {
+            a.fn(b);
+        }
+    };
+
+    template<>
+    struct dispatch<virtual_dispatch, arity_2, virtual_inheritance> {
+        static void fn(base& a, base& b) {
+            a.v_fn(b);
+        }
+    };
+
+    template<typename Arity, typename Inheritance>
+    struct dispatch<no_dispatch, Arity, Inheritance> {
+        static void fn(base& a, base& b) {
+        }
+    };
+
+    mp_product<
+        dispatch,
+        dispatch_types,
+        arity_types,
+        inheritance_types
+    > YOMM2_GENSYM;
 
     std::default_random_engine rnd;
     std::uniform_int_distribution<std::size_t> dist{0, OBJECTS() - 1};
-    std::vector<Animal*> objects;
+    std::vector<base*> objects;
 
     static population instance;
+
+    template<typename T>
+    static base* make() {
+        return new T;
+    }
+
+    std::vector<base* (*)()> factories;
+
+    population() {
+        mp_for_each<leaf_classes>([this](auto value) {
+            factories.push_back(make<decltype(value)>);
+        });
+
+        mp_for_each<dispatch_types>([this](auto D_value) {
+            using Dispatch = decltype(D_value);
+            mp_for_each<arity_types>([this](auto A_value) {
+                using Arity = decltype(A_value);
+                mp_for_each<inheritance_types>([this](auto I_value) {
+                    using Inheritance = decltype(I_value);
+                    this->dispatcher<Dispatch, Arity, Inheritance>() = [this]() {
+                        dispatch<Dispatch, Arity, Inheritance>::fn(draw(), draw());
+                    };
+                });
+            });
+        });
+    }
 
     ~population() {
         for (auto p : objects) {
@@ -325,46 +378,32 @@ struct population : abstract_population, DispatchPolicy {
             return nullptr;
         }
 
-        auto obj = (objects.size() & 1) ? (Animal*) new Cat : new Dog;
+        auto obj = factories[objects.size() % factories.size()]();
         objects.push_back(obj);
 
         return obj;
     }
 
-    Animal& draw() {
+    base& draw() {
         return *objects[dist(rnd)];
-    }
-
-    void call_0() override {
-        draw();
-        draw();
-    }
-
-    void call_1() override {
-        draw();
-        dispatcher::kick(draw());
-
-    }
-
-    void call_2() override {
-        dispatcher::meet(draw(), draw());
     }
 };
 
-template<typename N, typename InheritancePolicy, typename DispatchPolicy, typename Work>
-population<N, InheritancePolicy, DispatchPolicy, Work>
-population<N, InheritancePolicy, DispatchPolicy, Work>::instance;
+template<typename N>
+population<N> population<N>::instance;
 
-template<typename Inheritance, typename DispatchPolicy, typename Work>
-std::vector<abstract_population*> populations;
-
-std::vector<abstract_population*> all_populations;
-
-template<typename Inheritance, typename Dispatch, typename Work, typename Arity>
+template<typename Dispatch, typename Arity, typename Inheritance>
 struct Benchmark {
-    static std::string name;
+    std::string name;
 
     Benchmark() {
+        name = Dispatch::name()
+            + "-arity_" + std::to_string(Arity::value)
+            + "-" + Inheritance::name();
+            benchmark::RegisterBenchmark(name.c_str(), run);
+    }
+
+    explicit Benchmark(std::string name) : name(name) {
         benchmark::RegisterBenchmark(name.c_str(), run);
     }
 
@@ -372,28 +411,12 @@ struct Benchmark {
         std::default_random_engine rnd;
         std::uniform_int_distribution<std::size_t> dist{0, NH - 1};
         for (auto _ : state) {
-            if constexpr (Arity::value == 0) {
-                populations<Dispatch, Inheritance, Work>[dist(rnd)]->call_0();
-            } else if constexpr (Arity::value == 1) {
-                populations<Dispatch, Inheritance, Work>[dist(rnd)]->call_1();
-            } else {
-                static_assert(Arity::value == 2);
-                populations<Dispatch, Inheritance, Work>[dist(rnd)]->call_2();
-            }
+            populations[dist(rnd)]->dispatcher<Dispatch, Arity, Inheritance>()();
         }
     }
 };
 
-template<typename Inheritance, typename Dispatch, typename Work, typename Arity>
-std::string Benchmark<Inheritance, Dispatch, Work, Arity>::name =
-    std::string(Dispatch::name())
-        + "-arity_" + std::to_string(Arity::value)
-        + "-" + Inheritance::name()
-        + "-" + Work::name();
-
 int main(int argc, char** argv) {
-    yorel::yomm2::update_methods();
-
     std::ostringstream version;
 #if defined(__clang__)
     auto compiler = "clang";
@@ -419,21 +442,23 @@ int main(int argc, char** argv) {
     benchmark::AddCustomContext("yomm2_hierarchies", std::to_string(NH));
     benchmark::AddCustomContext("yomm2_objects", std::to_string(OBJECTS()));
 
-    std::vector<uintptr_t> vptrs;
+    Benchmark<no_dispatch, arity_1, ordinary_inheritance> YOMM2_GENSYM("baseline");
 
-    mp_for_each<mp_iota_c<NH>>([&vptrs](auto I_value) {
+    mp_apply<
+        std::tuple,
+        apply_product<
+            templates<Benchmark>,
+            mp11::mp_remove<dispatch_types, no_dispatch>,
+            arity_types,
+            inheritance_types
+        >
+    > YOMM2_GENSYM;
+
+    yorel::yomm2::update_methods();
+    
+    mp_for_each<mp_iota_c<NH>>([](auto I_value) {
         using I = decltype(I_value);
-        mp_for_each<dispatch_types>([&vptrs](auto D_value) {
-            using D = decltype(D_value);
-            mp_for_each<inheritance_types>([&vptrs](auto INH_value) {
-                using INH = decltype(INH_value);
-                mp_for_each<work_types>([&vptrs](auto W_value) {
-                    using W = decltype(W_value);
-                    populations<D, INH, W>.push_back(&population<I, INH, D, W>::instance);
-                    all_populations.push_back(&population<I, INH, D, W>::instance);
-                });
-            });
-        });
+        populations.push_back(&population<I>::instance);
     });
 
     std::vector<uintptr_t> obj_ptrs;
@@ -442,7 +467,7 @@ int main(int argc, char** argv) {
         std::default_random_engine rnd;
         std::uniform_int_distribution<std::size_t> dist;
 
-        auto incomplete_populations = all_populations;
+        auto incomplete_populations = populations;
 
         while (!incomplete_populations.empty()) {
             // pick one at random
@@ -458,24 +483,24 @@ int main(int argc, char** argv) {
         }
     }
 
-    Benchmark<ordinary_base, virtual_dispatch, no_work, int_<0>> YOMM2_GENSYM;
+#if false // !defined(NDEBUG)
+    // populations[0]->dispatcher<indirect_intrusive_dispatch, arity_1, ordinary_inheritance>()();
 
-    // clang-format off
-    mp_apply<
-        std::tuple,
-        apply_product<
-            templates<Benchmark>,
-            inheritance_types,
-            dispatch_types,
-            types<no_work, some_work>,
-            types<
-                std::integral_constant<size_t, 1>,
-                std::integral_constant<size_t, 2>
-            >
-        >
-    > YOMM2_GENSYM;
-
-    population<std::integral_constant<size_t, 0>, ordinary_base, direct_intrusive_dispatch, no_work>::instance.call_1();
+    mp_for_each<dispatch_types>([](auto D_value) {
+        using Dispatch = decltype(D_value);
+        if constexpr (!std::is_same_v<Dispatch, no_dispatch>) {
+            mp_for_each<arity_types>([](auto A_value) {
+                using Arity = decltype(A_value);
+                mp_for_each<inheritance_types>([](auto I_value) {
+                    using Inheritance = decltype(I_value);
+                    std::cout << Dispatch::name() << ", " << Arity::value << ", " << Inheritance::name() << "\n";
+                    auto pf = populations[0]->dispatcher<Dispatch, Arity, Inheritance>();
+                    pf();
+                });
+            });
+        }
+    });
+#endif
 
     benchmark::Initialize(&argc, argv);
 
@@ -489,13 +514,15 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-void call_hash_factors_in_globals_1(population<std::integral_constant<size_t, 0>, ordinary_base, orthogonal_dispatch<hash_factors_in_globals>, no_work>::Animal& a) {
-    population<std::integral_constant<size_t, 0>, ordinary_base, orthogonal_dispatch<hash_factors_in_globals>, no_work>::dispatcher::kick(a);
-}
+// void call_hash_factors_in_globals_1(population<std::integral_constant<size_t, 0>, ordinary_base, orthogonal_dispatch<hash_factors_in_globals>, no_work>::Animal& a) {
+//     population<std::integral_constant<size_t, 0>, ordinary_base, orthogonal_dispatch<hash_factors_in_globals>, no_work>::dispatcher::kick(a);
+// }
 
-void call_direct_intrusive_1(population<std::integral_constant<size_t, 0>, ordinary_base, direct_intrusive_dispatch, no_work>::Animal& a) {
-    population<std::integral_constant<size_t, 0>, ordinary_base, direct_intrusive_dispatch, no_work>::dispatcher::kick(a);
-	// movq	  8(%rdi),                       %rax
-	// movslq method.fn.slots_strides(%rip), %rcx
-	// jmpq	*(%rax,%rcx,8)
-}
+// void call_direct_intrusive_1(population<std::integral_constant<size_t, 0>, ordinary_base, direct_intrusive_dispatch, no_work>::Animal& a) {
+//     population<std::integral_constant<size_t, 0>, ordinary_base, direct_intrusive_dispatch, no_work>::dispatcher::kick(a);
+// 	// movq	  8(%rdi),                       %rax
+// 	// movslq method.fn.slots_strides(%rip), %rcx
+// 	// jmpq	*(%rax,%rcx,8)
+// }
+
+#endif // exclude gcc
