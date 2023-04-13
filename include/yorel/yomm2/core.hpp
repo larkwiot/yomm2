@@ -55,13 +55,13 @@ struct hash_search_error {
     size_t buckets;
 };
 
-struct intrusive_base_error {
+struct method_table_error {
     const std::type_info* ti;
 };
 
 using error_type = std::variant<
     resolution_error, unknown_class_error, hash_search_error,
-    intrusive_base_error>;
+    method_table_error>;
 
 using error_handler_type = void (*)(const error_type& error);
 
@@ -452,9 +452,6 @@ using mptr_type = detail::word*;
 
 template<typename, typename = policy::default_policy>
 mptr_type method_table;
-
-struct direct;
-struct indirect;
 
 template<typename Class, typename... Rest>
 struct class_declaration : class_declaration<

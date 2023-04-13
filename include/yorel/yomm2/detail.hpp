@@ -561,7 +561,7 @@ inline void
 check_intrusive_ptr(const word* mptr, const hash_table& hash, ti_ptr key) {
     if constexpr (debug) {
         if (mptr != hash[key]) {
-            error_handler(intrusive_base_error{key});
+            error_handler(method_table_error{key});
         }
     }
 }

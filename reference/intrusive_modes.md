@@ -61,7 +61,7 @@ A call to `kick` compiles to just three instructions:
 
 ```
 	mov	rax, qword ptr [rdi + 8]
-	mov	rcx, qword ptr [rip + method<kick, void (virtual_<Animal&>)>::fn+96]
+	mov	rcx, qword ptr [rip + method<kick>::fn+96]
 	jmp	qword ptr [rax + 8*rcx]         # TAILCALL
 ```
 

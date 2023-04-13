@@ -57,9 +57,9 @@ declare_method(std::string, kick, (virtual_<Animal&>));
 
 BOOST_AUTO_TEST_CASE(test_bad_intrusive_mptr) {
     auto prev_handler = set_error_handler([](const error_type& ev) {
-        if (auto error = std::get_if<intrusive_base_error>(&ev)) {
+        if (auto error = std::get_if<method_table_error>(&ev)) {
             static_assert(
-                std::is_same_v<decltype(error), const intrusive_base_error*>);
+                std::is_same_v<decltype(error), const method_table_error*>);
             throw *error;
         }
     });
@@ -69,7 +69,7 @@ BOOST_AUTO_TEST_CASE(test_bad_intrusive_mptr) {
     try {
         Dog snoopy;
         kick(snoopy);
-    } catch (const intrusive_base_error& error) {
+    } catch (const method_table_error& error) {
         BOOST_TEST(error.ti->name() == typeid(Dog).name());
         return;
     } catch (...) {
