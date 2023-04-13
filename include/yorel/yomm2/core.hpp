@@ -81,6 +81,14 @@ using default_policy = hash_factors_in_globals;
 template<typename Class, typename... Rest>
 struct class_declaration;
 
+struct direct;
+struct indirect;
+
+template<
+    class Class, typename Indirection = direct,
+    class Policy = policy::default_policy>
+class virtual_ptr;
+
 } // namespace yomm2
 } // namespace yorel
 
@@ -491,6 +499,60 @@ struct class_declaration<types<Class, Bases...>> : class_declaration<
 
 template<typename... T>
 using use_classes = typename detail::use_classes_aux<T...>::type;
+
+// =============================================================================
+// virtual_ptr
+
+template<class Class, class Indirection, class Policy>
+class virtual_ptr {
+  public:
+    explicit virtual_ptr(Class& obj) : obj(&obj) {
+        if constexpr (is_direct) {
+            mptr = Policy::context.hash[&typeid(obj)];
+        } else {
+            mptr = &method_table<Class, Policy>;
+        }
+    }
+
+    static virtual_ptr final(Class& obj) {
+        virtual_ptr result;
+        result.obj = &obj;
+
+        if constexpr (is_direct) {
+            result.mptr = method_table<Class, Policy>;
+        } else {
+            result.mptr = &method_table<Class, Policy>;
+        }
+
+        return result;
+    }
+
+    auto operator->() const {
+        return obj;
+    }
+
+    auto& object() const {
+        return *obj;
+    }
+
+    // for tests only
+    auto _mptr() const {
+        return mptr;
+    }
+
+  private:
+    virtual_ptr() {}
+
+    Class* obj;
+    static constexpr bool is_direct = std::is_same_v<Indirection, direct>;
+    std::conditional_t<is_direct, const detail::word*, mptr_type*> mptr;
+
+    template<typename, typename, class>
+    friend struct method;
+};
+
+// =============================================================================
+// update_methods
 
 yOMM2_API void update_methods();
 

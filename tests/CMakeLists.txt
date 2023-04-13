@@ -51,3 +51,7 @@ endif()
 add_executable(intrusive intrusive.cpp)
 target_link_libraries(intrusive YOMM2::yomm2 ${CMAKE_THREAD_LIBS_INIT})
 add_test(NAME intrusive COMMAND intrusive)
+
+add_executable(test_virtual_ptr test_virtual_ptr.cpp)
+target_link_libraries(test_virtual_ptr YOMM2::yomm2 ${CMAKE_THREAD_LIBS_INIT})
+add_test(NAME test_virtual_ptr COMMAND test_virtual_ptr)

@@ -154,6 +154,19 @@ template<typename Object>
 constexpr bool has_indirect_mptr_v =
     std::is_same_v<type_mptr_t<Object>, word**>;
 
+// -----------
+// virtual_ptr
+
+template<class>
+struct is_virtual_ptr_impl : std::false_type {};
+
+template<class Class, class Indirection, class Policy>
+struct is_virtual_ptr_impl<virtual_ptr<Class, Indirection, Policy>>
+    : std::true_type {};
+
+template<typename T>
+constexpr bool is_virtual_ptr = is_virtual_ptr_impl<T>::value;
+
 // -------------
 // hash function
 
@@ -398,7 +411,7 @@ struct argument_traits {
         return arg;
     }
 
-    #if defined(_MSC_VER) && (_MSC_VER / 100) <= 19
+#if defined(_MSC_VER) && (_MSC_VER / 100) <= 19
 
     template<typename U>
     static U& cast(U& obj) {
@@ -410,14 +423,14 @@ struct argument_traits {
         return obj;
     }
 
-    #else
+#else
 
     template<typename U>
     static decltype(auto) cast(U&& obj) {
         return std::forward<U>(obj);
     }
 
-    #endif
+#endif
 };
 
 template<typename T>
