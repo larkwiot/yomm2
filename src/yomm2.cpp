@@ -868,6 +868,7 @@ void operator+=(std::vector<word>& words, const std::vector<int>& ints) {
 void runtime::install_gv() {
     ctx.mptrs.resize(metrics.hash_table_size);
     ctx.control.resize(metrics.hash_table_size);
+    ctx.indirect_mptrs.resize(metrics.hash_table_size);
 
     for (size_t pass = 0; pass != 2; ++pass) {
         ctx.gv.resize(0);
@@ -948,9 +949,8 @@ void runtime::install_gv() {
                     auto index = ctx.hash(ti);
                     ctx.mptrs[index] = cls.mptr;
                     ctx.control[index] = ti;
-                    if (cls.intrusive_mptr) {
-                        *cls.intrusive_mptr = cls.mptr;
-                    }
+                    ctx.indirect_mptrs[index] = cls.intrusive_mptr;
+                    *cls.intrusive_mptr = cls.mptr;
                 }
             }
         }

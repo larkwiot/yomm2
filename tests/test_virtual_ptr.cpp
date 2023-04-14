@@ -45,7 +45,10 @@ BOOST_AUTO_TEST_CASE(test_direct_virtual_ptr) {
 
 namespace indirect_virtual_ptr {
 
-struct Animal {};
+struct Animal {
+    virtual ~Animal() {
+    }
+};
 struct Cat : Animal {};
 
 register_classes(Animal, Cat);
@@ -65,8 +68,8 @@ BOOST_AUTO_TEST_CASE(test_indirect_virtual_ptr) {
     BOOST_TEST(
         (virtual_ptr<Cat, indirect>::final(cat)._mptr() == &method_table<Cat>));
 
-    // BOOST_TEST(
-    //     (virtual_ptr<Animal, indirect>(cat)._mptr() == &method_table<Cat>));
+    BOOST_TEST(
+        (virtual_ptr<Animal, indirect>(cat)._mptr() == &method_table<Cat>));
 }
 } // namespace indirect_virtual_ptr
 

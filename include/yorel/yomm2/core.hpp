@@ -97,6 +97,7 @@ struct context {
     std::vector<detail::word> gv;
     std::vector<detail::word*> mptrs;
     std::vector<detail::ti_ptr> control;
+    std::vector<detail::word**> indirect_mptrs;
     detail::hash_function hash;
 };
 
@@ -532,11 +533,11 @@ template<class Class, class Indirection, class Policy>
 class virtual_ptr {
   public:
     explicit virtual_ptr(Class& obj) : obj(&obj) {
-        static_assert(
-            is_direct,
-            "dynamic virtual_ptr creation is not supported in indirect mode");
         if constexpr (is_direct) {
             mptr = Policy::context.mptrs[Policy::context.hash(&typeid(obj))];
+        } else {
+            mptr = Policy::context
+                       .indirect_mptrs[Policy::context.hash(&typeid(obj))];
         }
     }
 
