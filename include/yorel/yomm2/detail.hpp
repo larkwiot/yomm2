@@ -20,8 +20,6 @@ yOMM2_API void update_methods(catalog& cat, context& ht);
 
 namespace mp11 = boost::mp11;
 
-using ti_ptr = const std::type_info*;
-
 extern yOMM2_API error_handler_type error_handler;
 
 #ifdef NDEBUG
@@ -59,13 +57,6 @@ inline trace_type<Flags>& operator<<(trace_type<Flags>& trace, T&& value) {
     }
     return trace;
 }
-
-union word {
-    void* pf;
-    const word* pw;
-    size_t i;
-    const void* ti;
-};
 
 inline word make_word(size_t i) {
     word w;
@@ -175,38 +166,6 @@ inline std::size_t hash(std::uintptr_t mult, std::size_t shift, const void* p) {
         (mult * reinterpret_cast<std::uintptr_t>(const_cast<void*>(p))) >>
         shift);
 }
-
-struct hash_function {
-    std::uintptr_t mult;
-    std::size_t shift;
-
-    std::size_t operator()(const void* p) const {
-        return static_cast<std::size_t>(
-            (mult * reinterpret_cast<std::uintptr_t>(const_cast<void*>(p))) >>
-            shift);
-    }
-};
-
-struct hash_table {
-    hash_function fn;
-    word* table;
-
-    const word* operator[](ti_ptr ti) const {
-        auto index = fn(ti);
-        auto mptr = table[index].pw;
-
-        if constexpr (debug) {
-            if (!mptr || table[-1].pw[index].ti != ti) {
-                unknown_class_error error;
-                error.ti = ti;
-                error_handler(error_type(error));
-                abort();
-            }
-        }
-
-        return mptr;
-    }
-};
 
 // ----------
 // class info
@@ -571,9 +530,9 @@ inline auto get_tip(const T& arg) {
 }
 
 inline auto
-check_intrusive_ptr(const word* mptr, const hash_table& hash, ti_ptr key) {
+check_intrusive_ptr(const context& ctx, const word* mptr, ti_ptr key) {
     if constexpr (debug) {
-        if (mptr != hash[key]) {
+        if (mptr != ctx.gv[ctx.hash(key)].pw) {
             error_handler(method_table_error{key});
         }
     }
@@ -590,15 +549,13 @@ inline auto get_mptr(const ArgType& arg) {
         mptr = *arg.yomm2_mptr();
 
         if constexpr (debug) {
-            check_intrusive_ptr(
-                mptr, policy::template hash<Method>(), &typeid(arg));
+            check_intrusive_ptr(policy::context, mptr, &typeid(arg));
         }
     } else if constexpr (has_direct_mptr_v<ArgType>) {
         mptr = arg.yomm2_mptr();
 
         if constexpr (debug) {
-            check_intrusive_ptr(
-                mptr, policy::template hash<Method>(), &typeid(arg));
+            check_intrusive_ptr(policy::context, mptr, &typeid(arg));
         }
     } else {
         auto key = &typeid(arg);
@@ -607,7 +564,7 @@ inline auto get_mptr(const ArgType& arg) {
             call_trace << "  key = " << key;
         }
 
-        mptr = policy::template hash<Method>()[key];
+        mptr = policy::context.gv[policy::template hash<Method>()(key)].pw;
     }
 
     if constexpr (bool(trace_enabled & TRACE_CALLS)) {

@@ -31,6 +31,30 @@
 namespace yorel {
 namespace yomm2 {
 
+namespace detail {
+
+union word {
+    void* pf;
+    const word* pw;
+    size_t i;
+    const void* ti;
+};
+
+using ti_ptr = const std::type_info*;
+
+struct hash_function {
+    std::uintptr_t mult;
+    std::size_t shift;
+
+    std::size_t operator()(const void* p) const {
+        return static_cast<std::size_t>(
+            (mult * reinterpret_cast<std::uintptr_t>(const_cast<void*>(p))) >>
+            shift);
+    }
+};
+
+} // namespace detail
+
 template<typename T>
 struct virtual_;
 
@@ -68,7 +92,12 @@ using error_handler_type = void (*)(const error_type& error);
 yOMM2_API error_handler_type set_error_handler(error_handler_type handler);
 
 struct catalog;
-struct context;
+
+struct context {
+    std::vector<detail::word> gv;
+    std::vector<detail::ti_ptr> control;
+    detail::hash_function hash;
+};
 
 namespace policy {
 
@@ -131,11 +160,6 @@ struct catalog {
     static_chain<detail::method_info> methods;
 };
 
-struct context {
-    std::vector<detail::word> gv;
-    detail::hash_table hash;
-};
-
 namespace policy {
 
 struct abstract_policy {};
@@ -159,7 +183,7 @@ struct hash_factors_in_globals : global_catalog, global_context {
 
 struct hash_factors_in_method : global_catalog, global_context {
     struct yOMM2_API method_info_type : detail::method_info {
-        detail::hash_table hash;
+        detail::hash_function hash;
         void install_hash_factors(detail::runtime& rt) override;
     };
 
@@ -511,7 +535,7 @@ class virtual_ptr {
             is_direct,
             "dynamic virtual_ptr creation is not supported in indirect mode");
         if constexpr (is_direct) {
-            mptr = Policy::context.hash[&typeid(obj)];
+            mptr = Policy::context.gv[Policy::context.hash(&typeid(obj))].pw;
         }
     }
 
@@ -521,12 +545,10 @@ class virtual_ptr {
 
         if constexpr (is_direct) {
             result.mptr = detail::check_intrusive_ptr(
-                method_table<Class, Policy>, Policy::context.hash,
-                &typeid(obj));
+                Policy::context, method_table<Class, Policy>, &typeid(obj));
         } else {
             detail::check_intrusive_ptr(
-                method_table<Class, Policy>, Policy::context.hash,
-                &typeid(obj));
+                Policy::context, method_table<Class, Policy>, &typeid(obj));
             result.mptr = &method_table<Class, Policy>;
         }
 

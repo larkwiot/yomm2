@@ -154,7 +154,7 @@ void runtime::update() {
     augment_methods();
     allocate_slots();
     build_dispatch_tables();
-    find_hash_function(classes, ctx.hash.fn, metrics);
+    find_hash_function(classes, ctx.hash, metrics);
     install_gv();
     optimize();
     print(metrics);
@@ -868,38 +868,22 @@ void operator+=(std::vector<word>& words, const std::vector<int>& ints) {
 void runtime::install_gv() {
 
     for (size_t pass = 0; pass != 2; ++pass) {
-        ctx.gv.resize(0);
+        ctx.gv.resize(metrics.hash_table_size);
+        ctx.control.resize(metrics.hash_table_size);
 
         if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
             if (pass) {
                 ++trace << "Initializing global vector at " << ctx.gv.data()
-                        << "\n"
-                        << std::setw(4) << ctx.gv.size()
-                        << " pointer to control table\n";
+                        << "\n";
             }
         }
 
-        // reserve a work for control table
-        ctx.gv.emplace_back(make_word(nullptr));
-
-        auto hash_table = ctx.gv.data() + 1;
-        ctx.hash.table = hash_table;
 
         if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
             if (pass) {
                 ++trace << std::setw(4) << ctx.gv.size() << " hash table\n";
             }
         }
-
-        ctx.gv.resize(ctx.gv.size() + metrics.hash_table_size);
-
-        if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
-            if (pass) {
-                ++trace << std::setw(4) << ctx.gv.size() << " control table\n";
-            }
-        }
-
-        ctx.gv.resize(ctx.gv.size() + metrics.hash_table_size);
 
         for (auto& m : methods) {
             if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
@@ -948,9 +932,6 @@ void runtime::install_gv() {
                 [](void* pf) { return make_word(pf); });
         }
 
-        auto control_table = hash_table + metrics.hash_table_size;
-        ctx.gv[0].pw = control_table;
-
         for (auto& cls : classes) {
             cls.mptr = ctx.gv.data() + ctx.gv.size() - cls.first_used_slot;
 
@@ -970,9 +951,9 @@ void runtime::install_gv() {
 
             if (pass) {
                 for (auto ti : cls.ti_ptrs) {
-                    auto index = ctx.hash.fn(ti);
-                    hash_table[index].pw = cls.mptr;
-                    control_table[index].ti = ti;
+                    auto index = ctx.hash(ti);
+                    ctx.gv[index].pw = cls.mptr;
+                    ctx.control[index] = ti;
                     if (cls.intrusive_mptr) {
                         *cls.intrusive_mptr = cls.mptr;
                     }
@@ -1006,7 +987,7 @@ void runtime::optimize() {
 
                 if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
                     ++trace << "    " << cls->name() << " mtbl[" << slot
-                            << "] = gv+" << (pw - ctx.hash.table) << "\n";
+                            << "] = gv+" << (pw - ctx.gv.data()) << "\n";
                 }
 
                 cls->mptr[slot].pw = pw;

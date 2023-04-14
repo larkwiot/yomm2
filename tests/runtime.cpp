@@ -206,10 +206,6 @@ YOMM2_DEFINE(
     return true;
 }
 
-inline const word* mptr(const context& t, const std::type_info* ti) {
-    return t.hash[ti];
-}
-
 BOOST_AUTO_TEST_CASE(runtime_test) {
 
     runtime rt(test_policy::catalog, test_policy::context);
@@ -499,22 +495,22 @@ BOOST_AUTO_TEST_CASE(runtime_test) {
     BOOST_TEST_REQUIRE(pay_Manager->info->next != nullptr);
     BOOST_TEST(*pay_Manager->info->next == pay_Employee->info->pf);
 
-    rt.find_hash_function(rt.classes, rt.ctx.hash.fn, rt.metrics);
+    rt.find_hash_function(rt.classes, rt.ctx.hash, rt.metrics);
     rt.install_gv();
 
     {
         // pay
-        // clang-format off
-        BOOST_TEST_REQUIRE(test_policy::context.gv.size() ==
-                           1       // ptr to control table
-                           + rt.metrics.hash_table_size // mptr table
-                           + rt.metrics.hash_table_size // control table
-                           + 12    // approve: 3 slots and 12 cells for dispatch table
-                           + 12);  // 3 mtbl of 2 cells for Roles + 6 mtbl of 1 cells for Expenses
-        // clang-format on
+        BOOST_TEST_REQUIRE(
+            test_policy::context.gv.size() ==
+            rt.metrics.hash_table_size // mptr table
+                + 12   // approve: 3 slots and 12 cells for dispatch table
+                + 12); // 3 mtbl of 2 cells for Roles + 6 mtbl of 1 cells for
+                       // Expenses
+        BOOST_TEST_REQUIRE(
+            test_policy::context.control.size() == rt.metrics.hash_table_size);
 
         auto gv_iter =
-            test_policy::context.hash.table + 2 * rt.metrics.hash_table_size;
+            test_policy::context.gv.data() + rt.metrics.hash_table_size;
         // no slots nor fun* for 1-method
 
         // approve
