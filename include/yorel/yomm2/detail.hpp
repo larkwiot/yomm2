@@ -570,13 +570,15 @@ inline auto get_tip(const T& arg) {
     }
 }
 
-inline void
+inline auto
 check_intrusive_ptr(const word* mptr, const hash_table& hash, ti_ptr key) {
     if constexpr (debug) {
         if (mptr != hash[key]) {
             error_handler(method_table_error{key});
         }
     }
+
+    return mptr;
 }
 
 template<typename Method, typename ArgType>

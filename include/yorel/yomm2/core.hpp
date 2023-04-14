@@ -507,10 +507,11 @@ template<class Class, class Indirection, class Policy>
 class virtual_ptr {
   public:
     explicit virtual_ptr(Class& obj) : obj(&obj) {
+        static_assert(
+            is_direct,
+            "dynamic virtual_ptr creation is not supported in indirect mode");
         if constexpr (is_direct) {
             mptr = Policy::context.hash[&typeid(obj)];
-        } else {
-            mptr = &method_table<Class, Policy>;
         }
     }
 
@@ -519,8 +520,13 @@ class virtual_ptr {
         result.obj = &obj;
 
         if constexpr (is_direct) {
-            result.mptr = method_table<Class, Policy>;
+            result.mptr = detail::check_intrusive_ptr(
+                method_table<Class, Policy>, Policy::context.hash,
+                &typeid(obj));
         } else {
+            detail::check_intrusive_ptr(
+                method_table<Class, Policy>, Policy::context.hash,
+                &typeid(obj));
             result.mptr = &method_table<Class, Policy>;
         }
 
@@ -541,7 +547,8 @@ class virtual_ptr {
     }
 
   private:
-    virtual_ptr() {}
+    virtual_ptr() {
+    }
 
     Class* obj;
     static constexpr bool is_direct = std::is_same_v<Indirection, direct>;
