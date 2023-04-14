@@ -502,15 +502,15 @@ BOOST_AUTO_TEST_CASE(runtime_test) {
         // pay
         BOOST_TEST_REQUIRE(
             test_policy::context.gv.size() ==
-            rt.metrics.hash_table_size // mptr table
-                + 12   // approve: 3 slots and 12 cells for dispatch table
+            +12        // approve: 3 slots and 12 cells for dispatch table
                 + 12); // 3 mtbl of 2 cells for Roles + 6 mtbl of 1 cells for
                        // Expenses
         BOOST_TEST_REQUIRE(
+            test_policy::context.mptrs.size() == rt.metrics.hash_table_size);
+        BOOST_TEST_REQUIRE(
             test_policy::context.control.size() == rt.metrics.hash_table_size);
 
-        auto gv_iter =
-            test_policy::context.gv.data() + rt.metrics.hash_table_size;
+        auto gv_iter = test_policy::context.gv.data();
         // no slots nor fun* for 1-method
 
         // approve

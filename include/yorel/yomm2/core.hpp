@@ -95,6 +95,7 @@ struct catalog;
 
 struct context {
     std::vector<detail::word> gv;
+    std::vector<detail::word*> mptrs;
     std::vector<detail::ti_ptr> control;
     detail::hash_function hash;
 };
@@ -535,7 +536,7 @@ class virtual_ptr {
             is_direct,
             "dynamic virtual_ptr creation is not supported in indirect mode");
         if constexpr (is_direct) {
-            mptr = Policy::context.gv[Policy::context.hash(&typeid(obj))].pw;
+            mptr = Policy::context.mptrs[Policy::context.hash(&typeid(obj))];
         }
     }
 

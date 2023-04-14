@@ -866,22 +866,16 @@ void operator+=(std::vector<word>& words, const std::vector<int>& ints) {
 }
 
 void runtime::install_gv() {
+    ctx.mptrs.resize(metrics.hash_table_size);
+    ctx.control.resize(metrics.hash_table_size);
 
     for (size_t pass = 0; pass != 2; ++pass) {
-        ctx.gv.resize(metrics.hash_table_size);
-        ctx.control.resize(metrics.hash_table_size);
+        ctx.gv.resize(0);
 
         if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
             if (pass) {
                 ++trace << "Initializing global vector at " << ctx.gv.data()
                         << "\n";
-            }
-        }
-
-
-        if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
-            if (pass) {
-                ++trace << std::setw(4) << ctx.gv.size() << " hash table\n";
             }
         }
 
@@ -952,7 +946,7 @@ void runtime::install_gv() {
             if (pass) {
                 for (auto ti : cls.ti_ptrs) {
                     auto index = ctx.hash(ti);
-                    ctx.gv[index].pw = cls.mptr;
+                    ctx.mptrs[index] = cls.mptr;
                     ctx.control[index] = ti;
                     if (cls.intrusive_mptr) {
                         *cls.intrusive_mptr = cls.mptr;

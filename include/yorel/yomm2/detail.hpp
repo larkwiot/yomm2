@@ -532,7 +532,7 @@ inline auto get_tip(const T& arg) {
 inline auto
 check_intrusive_ptr(const context& ctx, const word* mptr, ti_ptr key) {
     if constexpr (debug) {
-        if (mptr != ctx.gv[ctx.hash(key)].pw) {
+        if (mptr != ctx.mptrs[ctx.hash(key)]) {
             error_handler(method_table_error{key});
         }
     }
@@ -564,7 +564,7 @@ inline auto get_mptr(const ArgType& arg) {
             call_trace << "  key = " << key;
         }
 
-        mptr = policy::context.gv[policy::template hash<Method>()(key)].pw;
+        mptr = policy::context.mptrs[policy::template hash<Method>()(key)];
     }
 
     if constexpr (bool(trace_enabled & TRACE_CALLS)) {
