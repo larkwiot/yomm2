@@ -14,6 +14,11 @@
 
 using namespace yorel::yomm2;
 
+template<typename T>
+std::string kick_cat(T&) {
+    return "meow!";
+}
+
 namespace direct_virtual_ptr {
 
 struct Animal {
@@ -40,6 +45,11 @@ BOOST_AUTO_TEST_CASE(test_direct_virtual_ptr) {
     BOOST_TEST(virtual_ptr<Cat>::final(cat)._mptr() == method_table<Cat>);
 
     BOOST_TEST(virtual_ptr<Animal>(cat)._mptr() == method_table<Cat>);
+
+    virtual_ptr<Animal> virtual_cat_ptr(cat);
+    static method<Animal, std::string(virtual_<Animal&>)> YOMM2_GENSYM;
+    update_methods();
+    BOOST_TEST(virtual_cat_ptr._mptr() != (method_table<Cat>));
 }
 } // namespace direct_virtual_ptr
 
@@ -70,6 +80,11 @@ BOOST_AUTO_TEST_CASE(test_indirect_virtual_ptr) {
 
     BOOST_TEST(
         (virtual_ptr<Animal, indirect>(cat)._mptr() == &method_table<Cat>));
+
+    virtual_ptr<Animal, indirect> virtual_cat_ptr(cat);
+    static method<Animal, std::string(virtual_<Animal&>)> YOMM2_GENSYM;
+    update_methods();
+    BOOST_TEST(*virtual_cat_ptr._mptr() == (method_table<Cat>));
 }
 } // namespace indirect_virtual_ptr
 

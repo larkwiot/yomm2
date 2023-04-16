@@ -89,6 +89,9 @@ template<typename T>
 struct is_virtual<virtual_<T>> : std::true_type {};
 
 template<typename T>
+struct is_virtual<virtual_ptr<T>> : std::true_type {};
+
+template<typename T>
 struct remove_virtual_ {
     using type = T;
 };
