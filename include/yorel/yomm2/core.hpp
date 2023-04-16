@@ -546,10 +546,10 @@ class virtual_ptr {
         result.obj = &obj;
 
         if constexpr (is_direct) {
-            result.mptr = detail::check_intrusive_ptr(
+            result.mptr = detail::check_method_pointer(
                 Policy::context, method_table<Class, Policy>, &typeid(obj));
         } else {
-            detail::check_intrusive_ptr(
+            detail::check_method_pointer(
                 Policy::context, method_table<Class, Policy>, &typeid(obj));
             result.mptr = &method_table<Class, Policy>;
         }

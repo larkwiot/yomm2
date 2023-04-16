@@ -530,7 +530,7 @@ inline auto get_tip(const T& arg) {
 }
 
 inline auto
-check_intrusive_ptr(const context& ctx, const word* mptr, ti_ptr key) {
+check_method_pointer(const context& ctx, const word* mptr, ti_ptr key) {
     if constexpr (debug) {
         if (mptr != ctx.mptrs[ctx.hash(key)]) {
             error_handler(method_table_error{key});
@@ -549,13 +549,13 @@ inline auto get_mptr(const ArgType& arg) {
         mptr = *arg.yomm2_mptr();
 
         if constexpr (debug) {
-            check_intrusive_ptr(policy::context, mptr, &typeid(arg));
+            check_method_pointer(policy::context, mptr, &typeid(arg));
         }
     } else if constexpr (has_direct_mptr_v<ArgType>) {
         mptr = arg.yomm2_mptr();
 
         if constexpr (debug) {
-            check_intrusive_ptr(policy::context, mptr, &typeid(arg));
+            check_method_pointer(policy::context, mptr, &typeid(arg));
         }
     } else {
         auto key = &typeid(arg);
