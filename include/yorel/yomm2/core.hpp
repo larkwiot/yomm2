@@ -115,9 +115,7 @@ struct class_declaration;
 struct direct;
 struct indirect;
 
-template<
-    class Class, typename Indirection = direct,
-    class Policy = policy::default_policy>
+template<class Class, class Policy = policy::default_policy>
 class virtual_ptr;
 
 } // namespace yomm2
@@ -164,7 +162,9 @@ struct catalog {
 
 namespace policy {
 
-struct abstract_policy {};
+struct abstract_policy {
+    static constexpr bool indirect_method_pointer = false;
+};
 
 struct yOMM2_API global_context : virtual abstract_policy {
     static struct context context;
@@ -549,17 +549,16 @@ using use_classes = typename detail::use_classes_aux<T...>::type;
 // =============================================================================
 // virtual_ptr
 
-template<class Class, class Indirection, class Policy>
+template<class Class, class Policy>
 class virtual_ptr {
     template<typename, typename, class>
     friend struct method;
 
-    template<class OtherClass, class OtherIndirection, class OtherPolicy>
+    template<class OtherClass, class OtherPolicy>
     friend class virtual_ptr;
 
   public:
-    static constexpr bool is_direct = std::is_same_v<Indirection, direct>;
-    static constexpr bool is_indirect = !is_direct;
+    static constexpr bool is_indirect = Policy::indirect_method_pointer;
     using object_type = Class;
 
     virtual_ptr() = delete;
@@ -568,23 +567,26 @@ class virtual_ptr {
         class OtherClass,
         typename = std::enable_if_t<!detail::is_virtual_ptr<OtherClass>, void>>
     virtual_ptr(OtherClass& obj) : obj(&obj) {
-        if constexpr (is_direct) {
+        if constexpr (is_indirect) {
+            if (typeid(obj) == typeid(OtherClass)) {
+                mptr = detail::indirect_method_table<OtherClass, Policy>;
+            } else {
+                mptr = Policy::context
+                           .indirect_mptrs[Policy::context.hash(&typeid(obj))];
+            }
+        } else {
             if (typeid(obj) == typeid(OtherClass)) {
                 mptr = detail::method_table<OtherClass, Policy>;
             } else {
                 mptr =
                     Policy::context.mptrs[Policy::context.hash(&typeid(obj))];
             }
-        } else {
-            mptr = Policy::context
-                       .indirect_mptrs[Policy::context.hash(&typeid(obj))];
         }
     }
 
     // TODO: make it work across different policies
     template<class OtherClass>
-    explicit virtual_ptr(
-        const virtual_ptr<OtherClass, Indirection, Policy>& other)
+    explicit virtual_ptr(const virtual_ptr<OtherClass, Policy>& other)
         : obj(other.obj), mptr(other.mptr) {
     }
 
@@ -598,11 +600,11 @@ class virtual_ptr {
             }
         }
 
-        if constexpr (is_direct) {
-            return virtual_ptr(&obj, detail::method_table<Class, Policy>);
-        } else {
+        if constexpr (is_indirect) {
             return virtual_ptr(
                 &obj, detail::indirect_method_table<Class, Policy>);
+        } else {
+            return virtual_ptr(&obj, detail::method_table<Class, Policy>);
         }
     }
 
@@ -627,16 +629,16 @@ class virtual_ptr {
 
     // for tests only
     auto method_table() const {
-        if constexpr (is_direct) {
-            return mptr;
-        } else {
+        if constexpr (is_indirect) {
             return *mptr;
+        } else {
+            return mptr;
         }
     }
 
   private:
     using mptr_type =
-        std::conditional_t<is_direct, const detail::word*, detail::mptr_type*>;
+        std::conditional_t<is_indirect, detail::mptr_type*, detail::mptr_type>;
 
     virtual_ptr(Class* obj, mptr_type mptr) : obj(obj), mptr(mptr) {
     }

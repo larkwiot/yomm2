@@ -96,8 +96,8 @@ struct is_virtual : std::false_type {};
 template<typename T>
 struct is_virtual<virtual_<T>> : std::true_type {};
 
-template<typename T, typename Indirection, class Policy>
-struct is_virtual<virtual_ptr<T, Indirection, Policy>> : std::true_type {};
+template<typename T, class Policy>
+struct is_virtual<virtual_ptr<T, Policy>> : std::true_type {};
 
 template<typename T>
 struct remove_virtual_ {
@@ -162,9 +162,8 @@ constexpr bool has_indirect_mptr_v =
 template<typename>
 struct is_virtual_ptr_aux : std::false_type {};
 
-template<class Class, class Indirection, class Policy>
-struct is_virtual_ptr_aux<virtual_ptr<Class, Indirection, Policy>>
-    : std::true_type {};
+template<class Class, class Policy>
+struct is_virtual_ptr_aux<virtual_ptr<Class, Policy>> : std::true_type {};
 
 template<typename T>
 constexpr bool is_virtual_ptr = is_virtual_ptr_aux<T>::value;
@@ -347,17 +346,17 @@ struct virtual_traits<T*> {
     }
 };
 
-template<class Class, class Indirection, class Policy>
-struct virtual_traits<virtual_ptr<Class, Indirection, Policy>> {
+template<class Class, class Policy>
+struct virtual_traits<virtual_ptr<Class, Policy>> {
     using polymorphic_type = Class;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static auto ref(virtual_ptr<Class, Indirection, Policy> ptr) {
+    static auto ref(virtual_ptr<Class, Policy> ptr) {
         return ptr;
     }
 
     template<typename Derived>
-    static Derived cast(virtual_ptr<Class, Indirection, Policy> ptr) {
+    static Derived cast(virtual_ptr<Class, Policy> ptr) {
         return ptr.template cast<Derived>();
     }
 };
@@ -387,9 +386,9 @@ struct resolver_type_impl<virtual_<T>> {
     using type = decltype(virtual_traits<T>::ref(std::declval<T>()));
 };
 
-template<class Class, class Indirection, class Policy>
-struct resolver_type_impl<virtual_ptr<Class, Indirection, Policy>> {
-    using type = virtual_ptr<Class, Indirection, Policy>;
+template<class Class, class Policy>
+struct resolver_type_impl<virtual_ptr<Class, Policy>> {
+    using type = virtual_ptr<Class, Policy>;
 };
 
 template<typename T>
@@ -426,9 +425,9 @@ struct argument_traits {
 template<typename T>
 struct argument_traits<virtual_<T>> : virtual_traits<T> {};
 
-template<class Class, class Indirection, class Policy>
-struct argument_traits<virtual_ptr<Class, Indirection, Policy>>
-    : virtual_traits<virtual_ptr<Class, Indirection, Policy>> {};
+template<class Class, class Policy>
+struct argument_traits<virtual_ptr<Class, Policy>>
+    : virtual_traits<virtual_ptr<Class, Policy>> {};
 
 template<typename T>
 struct shared_ptr_traits {
@@ -530,11 +529,11 @@ struct select_spec_polymorphic_type<virtual_<P>, Q> {
     using type = polymorphic_type<Q>;
 };
 
-template<typename P, typename Q, class Indirection, class Policy>
+template<typename P, typename Q, class Policy>
 struct select_spec_polymorphic_type<
-    virtual_ptr<P, Indirection, Policy>, virtual_ptr<Q, Indirection, Policy>> {
-    using type = typename virtual_traits<
-        virtual_ptr<Q, Indirection, Policy>>::polymorphic_type;
+    virtual_ptr<P, Policy>, virtual_ptr<Q, Policy>> {
+    using type =
+        typename virtual_traits<virtual_ptr<Q, Policy>>::polymorphic_type;
 };
 
 template<typename MethodArgList, typename SpecArgList>

@@ -21,89 +21,78 @@ struct indirect {};
 } // namespace yomm2
 } // namespace yorel
 
-using indirection_types = types<direct, indirect>;
-
-template<typename>
-struct test_policy_ : policy::default_policy {
-    static struct catalog catalog;
-    static struct context context;
-};
-
-template<typename T>
-catalog test_policy_<T>::catalog;
-template<typename T>
-context test_policy_<T>::context;
-
 struct Animal {
     virtual ~Animal() {
     }
 };
 
 struct Cat : Animal {};
+struct Dog : Animal {};
 
-namespace direct_virtual_ptr {
+using indirection_types = types<direct, indirect>;
 
-struct key;
-using test_policy = test_policy_<key>;
+template<typename Key, bool Indirect>
+struct test_policy_ : policy::default_policy {
+    static struct catalog catalog;
+    static struct context context;
+    static constexpr bool indirect_method_pointer = Indirect;
+};
 
-Cat cat;
-virtual_ptr<Cat> v_cat(cat);
-virtual_ptr<Animal> v_animal(v_cat);
+template<typename Key, bool Indirect>
+catalog test_policy_<Key, Indirect>::catalog;
+template<typename Key, bool Indirect>
+context test_policy_<Key, Indirect>::context;
 
-register_classes(test_policy, Animal, Cat);
+template<typename Key>
+using policy_types = types<test_policy_<Key, false>, test_policy_<Key, true>>;
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(
-    test_virtual_ptr, Indirection, indirection_types) {
+namespace test_virtual_ptr {
+
+struct key {};
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_virtual_ptr, Policy, policy_types<key>) {
     using namespace detail;
 
-    detail::update_methods(test_policy::catalog, test_policy::context);
+    static use_classes<Policy, Animal, Cat> YOMM2_GENSYM;
+    detail::update_methods(Policy::catalog, Policy::context);
 
-    using vptr_animal = virtual_ptr<Animal, Indirection, test_policy>;
+    using vptr_animal = virtual_ptr<Animal, Policy>;
     static_assert(detail::is_virtual_ptr<vptr_animal>);
-    using vptr_cat = virtual_ptr<Cat, Indirection, test_policy>;
+    using vptr_cat = virtual_ptr<Cat, Policy>;
 
     Animal animal;
     auto virtual_animal = vptr_animal::final(animal);
     BOOST_TEST(&virtual_animal.object() == &animal);
-    BOOST_TEST(
-        (virtual_animal.method_table() == method_table<Animal, test_policy>));
+    BOOST_TEST((virtual_animal.method_table() == method_table<Animal, Policy>));
 
     Cat cat;
     BOOST_TEST((&vptr_cat::final(cat).object()) == &cat);
-    BOOST_TEST((
-        vptr_cat::final(cat).method_table() == method_table<Cat, test_policy>));
-
     BOOST_TEST(
-        (vptr_animal(cat).method_table() == method_table<Cat, test_policy>));
+        (vptr_cat::final(cat).method_table() == method_table<Cat, Policy>));
+
+    BOOST_TEST((vptr_animal(cat).method_table() == method_table<Cat, Policy>));
 
     vptr_animal virtual_cat_ptr(cat);
-    static method<Animal, std::string(virtual_<Animal&>), test_policy>
-        YOMM2_GENSYM;
-    detail::update_methods(test_policy::catalog, test_policy::context);
+    static method<Animal, std::string(virtual_<Animal&>), Policy> YOMM2_GENSYM;
+    detail::update_methods(Policy::catalog, Policy::context);
     BOOST_TEST(
-        (virtual_cat_ptr.method_table() == method_table<Cat, test_policy>) ==
+        (virtual_cat_ptr.method_table() == method_table<Cat, Policy>) ==
         vptr_animal::is_indirect);
 }
-} // namespace direct_virtual_ptr
+} // namespace test_virtual_ptr
 
 #ifndef NDEBUG
 
 namespace bad_virtual_ptr {
 
-struct Animal {
-    virtual ~Animal() {
-    }
-};
+struct key {};
+using test_policy = test_policy_<key, false>;
 
-using test_policy = test_policy_<Animal>;
-
-struct Dog : Animal {};
-
-register_classes(Animal, Dog, test_policy);
+register_classes(test_policy, Animal, Dog);
 
 declare_method(std::string, kick, (virtual_<Animal&>), test_policy);
 
-BOOST_AUTO_TEST_CASE(test_bad_virtual_ptr) {
+BOOST_AUTO_TEST_CASE(test_final) {
     auto prev_handler = set_error_handler([](const error_type& ev) {
         if (auto error = std::get_if<method_table_error>(&ev)) {
             static_assert(
@@ -112,12 +101,12 @@ BOOST_AUTO_TEST_CASE(test_bad_virtual_ptr) {
         }
     });
 
-    update_methods();
+    detail::update_methods(test_policy::catalog, test_policy::context);
 
     try {
         Dog snoopy;
         Animal& animal = snoopy;
-        virtual_ptr<Animal, direct, test_policy>::final(animal);
+        virtual_ptr<Animal, test_policy>::final(animal);
     } catch (const method_table_error& error) {
         BOOST_TEST(error.ti->name() == typeid(Dog).name());
         return;
@@ -135,6 +124,8 @@ BOOST_AUTO_TEST_CASE(test_bad_virtual_ptr) {
 
 namespace test_virtual_ptr_dispatch {
 
+struct key {};
+
 struct Character {
     virtual ~Character() {
     }
@@ -151,55 +142,46 @@ struct Object {
 
 struct Axe : Object {};
 
-use_classes<Character, Warrior, Object, Axe, Bear> YOMM2_GENSYM;
-
-using kick = method<void, std::string(virtual_ptr<Character>)>;
-
-static auto definition(virtual_ptr<Bear>) {
-    return std::string("growl");
-}
-
-kick::add_function<definition> YOMM2_GENSYM;
-
 BOOST_AUTO_TEST_CASE_TEMPLATE(
-    test_virtual_ptr_dispatch_uni_method, IndirectionType, indirection_types) {
-    // detail::trace_flags = 3;
-    // detail::logs = &std::cerr;
-    update_methods();
+    test_virtual_ptr_dispatch, Policy, policy_types<key>) {
 
-    Bear bear;
-    BOOST_TEST(kick::fn(virtual_ptr<Character>(bear)) == "growl");
-}
+    static use_classes<Policy, Character, Warrior, Object, Axe, Bear>
+        YOMM2_GENSYM;
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(
-    test_virtual_ptr_dispatch_multi_method, IndirectionType, indirection_types) {
-    // detail::trace_flags = 3;
-    // detail::logs = &std::cerr;
+    using kick =
+        method<void, std::string(virtual_ptr<Character, Policy>), Policy>;
+
+    struct kick_definition {
+        static std::string fn(virtual_ptr<Bear, Policy>) {
+            return std::string("growl");
+        }
+    };
+    static typename kick::template add_definition<kick_definition> YOMM2_GENSYM;
 
     using fight = method<
         void,
         std::string(
-            virtual_ptr<Character, IndirectionType>,
-            virtual_ptr<Object, IndirectionType>,
-            virtual_ptr<Character, IndirectionType>)>;
+            virtual_ptr<Character, Policy>, virtual_ptr<Object, Policy>,
+            virtual_ptr<Character, Policy>), Policy>;
 
-    struct definition {
+    struct fight_definition {
         static std::string
-        fn(virtual_ptr<Warrior, IndirectionType>,
-           virtual_ptr<Axe, IndirectionType>,
-           virtual_ptr<Bear, IndirectionType>) {
+        fn(virtual_ptr<Warrior, Policy>, virtual_ptr<Axe, Policy>,
+           virtual_ptr<Bear, Policy>) {
             return "kill bear";
         }
     };
+    static typename fight::template add_definition<fight_definition>
+        YOMM2_GENSYM;
 
-    static typename fight::template add_definition<definition> YOMM2_GENSYM;
+    detail::update_methods(Policy::catalog, Policy::context);
 
-    update_methods();
+    Bear bear;
+    BOOST_TEST(kick::fn(virtual_ptr<Character, Policy>(bear)) == "growl");
 
     Warrior warrior;
     Axe axe;
-    Bear bear;
-   BOOST_TEST(fight::fn(warrior, axe, bear) == "kill bear");
+    BOOST_TEST(fight::fn(warrior, axe, bear) == "kill bear");
 }
 
 } // namespace test_virtual_ptr_dispatch
