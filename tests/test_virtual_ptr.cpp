@@ -14,79 +14,66 @@
 
 using namespace yorel::yomm2;
 
+template<typename>
+struct test_policy_ : policy::default_policy {
+    static struct catalog catalog;
+    static struct context context;
+};
+
 template<typename T>
-std::string kick_cat(T&) {
-    return "meow!";
-}
+catalog test_policy_<T>::catalog;
+template<typename T>
+context test_policy_<T>::context;
+
+struct Animal {
+    virtual ~Animal() {
+    }
+};
+
+struct Cat : Animal {};
 
 namespace direct_virtual_ptr {
 
-struct Animal {
-    virtual ~Animal() {
-    }
-};
+struct key;
+using test_policy = test_policy_<key>;
 
-struct Cat : Animal {};
-
-register_classes(Animal, Cat);
+register_classes(test_policy, Animal, Cat);
 
 BOOST_AUTO_TEST_CASE(test_direct_virtual_ptr) {
-    update_methods();
+    boost::mp11::mp_for_each<types<direct*, indirect*>>([](auto value) {
+        using Indirection = std::remove_pointer_t<decltype(value)>;
+        detail::update_methods(test_policy::catalog, test_policy::context);
 
-    static_assert(detail::is_virtual_ptr<virtual_ptr<Animal>>);
+        using vptr_animal = virtual_ptr<Animal, Indirection, test_policy>;
+        static_assert(detail::is_virtual_ptr<vptr_animal>);
+        using vptr_cat = virtual_ptr<Cat, Indirection, test_policy>;
 
-    Animal animal;
-    auto virtual_animal = virtual_ptr<Animal>::final(animal);
-    BOOST_TEST(&virtual_animal.object() == &animal);
-    BOOST_TEST(virtual_animal._mptr() == method_table<Animal>);
+        Animal animal;
+        auto virtual_animal = vptr_animal::final(animal);
+        BOOST_TEST(&virtual_animal.object() == &animal);
+        BOOST_TEST(
+            (virtual_animal.method_table() ==
+             method_table<Animal, test_policy>));
 
-    Cat cat;
-    BOOST_TEST(&virtual_ptr<Cat>::final(cat).object() == &cat);
-    BOOST_TEST(virtual_ptr<Cat>::final(cat)._mptr() == method_table<Cat>);
+        Cat cat;
+        BOOST_TEST((&vptr_cat::final(cat).object()) == &cat);
+        BOOST_TEST(
+            (vptr_cat::final(cat).method_table() ==
+             method_table<Cat, test_policy>));
 
-    BOOST_TEST(virtual_ptr<Animal>(cat)._mptr() == method_table<Cat>);
+        BOOST_TEST((
+            vptr_animal(cat).method_table() == method_table<Cat, test_policy>));
 
-    virtual_ptr<Animal> virtual_cat_ptr(cat);
-    static method<Animal, std::string(virtual_<Animal&>)> YOMM2_GENSYM;
-    update_methods();
-    BOOST_TEST(virtual_cat_ptr._mptr() != (method_table<Cat>));
+        vptr_animal virtual_cat_ptr(cat);
+        static method<Animal, std::string(virtual_<Animal&>), test_policy>
+            YOMM2_GENSYM;
+        detail::update_methods(test_policy::catalog, test_policy::context);
+        BOOST_TEST(
+            (virtual_cat_ptr.method_table() ==
+             method_table<Cat, test_policy>) == vptr_animal::is_indirect);
+    });
 }
 } // namespace direct_virtual_ptr
-
-namespace indirect_virtual_ptr {
-
-struct Animal {
-    virtual ~Animal() {
-    }
-};
-struct Cat : Animal {};
-
-register_classes(Animal, Cat);
-
-BOOST_AUTO_TEST_CASE(test_indirect_virtual_ptr) {
-    update_methods();
-
-    static_assert(detail::is_virtual_ptr<virtual_ptr<Animal, indirect>>);
-
-    Animal animal;
-    auto virtual_animal = virtual_ptr<Animal, indirect>::final(animal);
-    BOOST_TEST(&virtual_animal.object() == &animal);
-    BOOST_TEST(virtual_animal._mptr() == &method_table<Animal>);
-
-    Cat cat;
-    BOOST_TEST((&virtual_ptr<Cat, indirect>::final(cat).object() == &cat));
-    BOOST_TEST(
-        (virtual_ptr<Cat, indirect>::final(cat)._mptr() == &method_table<Cat>));
-
-    BOOST_TEST(
-        (virtual_ptr<Animal, indirect>(cat)._mptr() == &method_table<Cat>));
-
-    virtual_ptr<Animal, indirect> virtual_cat_ptr(cat);
-    static method<Animal, std::string(virtual_<Animal&>)> YOMM2_GENSYM;
-    update_methods();
-    BOOST_TEST(*virtual_cat_ptr._mptr() == (method_table<Cat>));
-}
-} // namespace indirect_virtual_ptr
 
 #ifndef NDEBUG
 

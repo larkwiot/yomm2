@@ -928,8 +928,12 @@ void runtime::install_gv() {
         }
 
         for (auto& cls : classes) {
-            cls.mptr = ctx.gv.data() + ctx.gv.size() - cls.first_used_slot;
-
+            if (cls.first_used_slot == -1) {
+                // corner case: no methods for this class
+                cls.mptr = ctx.gv.data() + ctx.gv.size();
+            } else {
+                cls.mptr = ctx.gv.data() + ctx.gv.size() - cls.first_used_slot;
+            }
             if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
                 if (pass) {
                     ++trace << std::setw(4) << ctx.gv.size() << " mtbl for "

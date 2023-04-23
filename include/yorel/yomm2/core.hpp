@@ -532,6 +532,9 @@ using use_classes = typename detail::use_classes_aux<T...>::type;
 template<class Class, class Indirection, class Policy>
 class virtual_ptr {
   public:
+    static constexpr bool is_direct = std::is_same_v<Indirection, direct>;
+    static constexpr bool is_indirect = !is_direct;
+
     explicit virtual_ptr(Class& obj) : obj(&obj) {
         if constexpr (is_direct) {
             mptr = Policy::context.mptrs[Policy::context.hash(&typeid(obj))];
@@ -547,11 +550,13 @@ class virtual_ptr {
 
         if constexpr (is_direct) {
             result.mptr = detail::check_method_pointer(
-                Policy::context, method_table<Class, Policy>, &typeid(obj));
+                Policy::context, yomm2::method_table<Class, Policy>,
+                &typeid(obj));
         } else {
             detail::check_method_pointer(
-                Policy::context, method_table<Class, Policy>, &typeid(obj));
-            result.mptr = &method_table<Class, Policy>;
+                Policy::context, yomm2::method_table<Class, Policy>,
+                &typeid(obj));
+            result.mptr = &yomm2::method_table<Class, Policy>;
         }
 
         return result;
@@ -566,8 +571,12 @@ class virtual_ptr {
     }
 
     // for tests only
-    auto _mptr() const {
-        return mptr;
+    auto method_table() const {
+        if constexpr (is_direct) {
+            return mptr;
+        } else {
+            return *mptr;
+        }
     }
 
   private:
@@ -575,7 +584,6 @@ class virtual_ptr {
     }
 
     Class* obj;
-    static constexpr bool is_direct = std::is_same_v<Indirection, direct>;
     std::conditional_t<is_direct, const detail::word*, mptr_type*> mptr;
 
     template<typename, typename, class>

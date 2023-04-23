@@ -52,7 +52,7 @@ namespace direct_intrusive {
 
 #ifdef YOMM2_CODE
 
-namespace yomm2 = yorel::yomm2; // for brevity
+using yorel::yomm2::virtual_ptr;
 
 class Animal {
   public:
@@ -63,21 +63,21 @@ class Animal {
 class Dog : public Animal {
 };
 
-declare_method(void, kick, (virtual_<Animal&>));
+declare_method(void, kick, (virtual_ptr<Animal&>));
 
 declare_method(void, meet, (virtual_<Animal&>, virtual_<Animal&>));
 
 #endif
 
+define_method(void, kick, (virtual_ptr<Dog> & dog)) {
+    // bark
+}
+
 define_method(void, meet, (Dog& a, Dog& b)) {
     // wag tail
 }
 
-define_method(void, kick, (Dog & dog)) {
-    // bark
-}
-
-void call_kick(Animal& animal) {
+void call_kick(virtual_ptr<Animal> animal) {
     kick(animal);
 }
 
