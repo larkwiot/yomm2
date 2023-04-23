@@ -14,6 +14,16 @@
 
 using namespace yorel::yomm2;
 
+namespace yorel {
+namespace yomm2 {
+struct direct {};
+struct indirect {};
+} // namespace yomm2
+} // namespace yorel
+
+
+using indirection_types = types<direct, indirect>;
+
 template<typename>
 struct test_policy_ : policy::default_policy {
     static struct catalog catalog;
@@ -39,39 +49,35 @@ using test_policy = test_policy_<key>;
 
 register_classes(test_policy, Animal, Cat);
 
-BOOST_AUTO_TEST_CASE(test_direct_virtual_ptr) {
-    boost::mp11::mp_for_each<types<direct*, indirect*>>([](auto value) {
-        using Indirection = std::remove_pointer_t<decltype(value)>;
-        detail::update_methods(test_policy::catalog, test_policy::context);
+BOOST_AUTO_TEST_CASE_TEMPLATE(
+    test_virtual_ptr, Indirection, indirection_types) {
+    detail::update_methods(test_policy::catalog, test_policy::context);
 
-        using vptr_animal = virtual_ptr<Animal, Indirection, test_policy>;
-        static_assert(detail::is_virtual_ptr<vptr_animal>);
-        using vptr_cat = virtual_ptr<Cat, Indirection, test_policy>;
+    using vptr_animal = virtual_ptr<Animal, Indirection, test_policy>;
+    static_assert(detail::is_virtual_ptr<vptr_animal>);
+    using vptr_cat = virtual_ptr<Cat, Indirection, test_policy>;
 
-        Animal animal;
-        auto virtual_animal = vptr_animal::final(animal);
-        BOOST_TEST(&virtual_animal.object() == &animal);
-        BOOST_TEST(
-            (virtual_animal.method_table() ==
-             method_table<Animal, test_policy>));
+    Animal animal;
+    auto virtual_animal = vptr_animal::final(animal);
+    BOOST_TEST(&virtual_animal.object() == &animal);
+    BOOST_TEST(
+        (virtual_animal.method_table() == method_table<Animal, test_policy>));
 
-        Cat cat;
-        BOOST_TEST((&vptr_cat::final(cat).object()) == &cat);
-        BOOST_TEST(
-            (vptr_cat::final(cat).method_table() ==
-             method_table<Cat, test_policy>));
+    Cat cat;
+    BOOST_TEST((&vptr_cat::final(cat).object()) == &cat);
+    BOOST_TEST((
+        vptr_cat::final(cat).method_table() == method_table<Cat, test_policy>));
 
-        BOOST_TEST((
-            vptr_animal(cat).method_table() == method_table<Cat, test_policy>));
+    BOOST_TEST(
+        (vptr_animal(cat).method_table() == method_table<Cat, test_policy>));
 
-        vptr_animal virtual_cat_ptr(cat);
-        static method<Animal, std::string(virtual_<Animal&>), test_policy>
-            YOMM2_GENSYM;
-        detail::update_methods(test_policy::catalog, test_policy::context);
-        BOOST_TEST(
-            (virtual_cat_ptr.method_table() ==
-             method_table<Cat, test_policy>) == vptr_animal::is_indirect);
-    });
+    vptr_animal virtual_cat_ptr(cat);
+    static method<Animal, std::string(virtual_<Animal&>), test_policy>
+        YOMM2_GENSYM;
+    detail::update_methods(test_policy::catalog, test_policy::context);
+    BOOST_TEST(
+        (virtual_cat_ptr.method_table() == method_table<Cat, test_policy>) ==
+        vptr_animal::is_indirect);
 }
 } // namespace direct_virtual_ptr
 
@@ -116,96 +122,56 @@ BOOST_AUTO_TEST_CASE(test_bad_virtual_ptr) {
     set_error_handler(prev_handler);
 }
 } // namespace bad_virtual_ptr
+
 #endif
 
-#if 0
+namespace test_virtual_ptr_dispatch {
 
-struct indirect_intrusive_mode {
-    template<typename Class>
-    using root = root<Class, indirect>;
-    template<typename Class>
-    using derived = derived<Class>;
-};
-
-struct direct_intrusive_mode {
-    template<typename Class>
-    using root = root<Class, direct>;
-    template<typename Class>
-    using derived = derived<Class>;
-};
-
-template<typename Class>
-struct no__mptr {};
-
-struct orthogonal_mode {
-    template<typename Class>
-    using root = no__mptr<Class>;
-    template<typename Class>
-    using derived = no__mptr<Class>;
-};
-
-template<typename Mode>
-struct class_set {
-    template<typename Class>
-    using root = typename Mode::template root<Class>;
-    template<typename Class>
-    using derived = typename Mode::template derived<Class>;
-
-    struct Character : root<Character> {
-        virtual ~Character() {
-        }
-    };
-
-    struct Warrior : Character, derived<Warrior> {};
-
-    struct Device : root<Device> {
-        virtual ~Device() {
-        }
-    };
-
-    struct Axe : Device, derived<Axe> {};
-
-    struct Creature : root<Creature> {
-        virtual ~Creature() {
-        }
-    };
-
-    struct Bear : Creature, derived<Bear> {};
-
-    use_classes<Character, Warrior, Device, Axe, Creature, Bear> YOMM2_GENSYM;
-
-    struct YOMM2_SYMBOL(kick);
-    using kick = method<YOMM2_SYMBOL(kick), std::string(virtual_<Creature&>)>;
-
-    static auto definition(Bear&) {
-        return std::string("growl");
+struct Character {
+    virtual ~Character() {
     }
-
-    typename kick::template add_function<definition> YOMM2_GENSYM;
 };
 
-using mode_list =
-    std::tuple<indirect_intrusive_mode, direct_intrusive_mode, orthogonal_mode>;
+struct Warrior : Character {};
 
-using class_set_list = boost::mp11::mp_transform<class_set, mode_list>;
-boost::mp11::mp_apply<std::tuple, class_set_list> YOMM2_GENSYM;
+struct Bear : Character {};
+
+struct Object {
+    virtual ~Object() {
+    }
+};
+
+struct Axe : Object {};
+
+use_classes<Character, Warrior, Object, Axe, Bear> YOMM2_GENSYM;
+
+struct YOMM2_SYMBOL(kick);
+using kick = method<YOMM2_SYMBOL(kick), std::string(virtual_ptr<Character>)>;
+
+static auto definition(virtual_ptr<Bear>) {
+    return std::string("growl");
+}
+
+typename kick::template add_function<definition> YOMM2_GENSYM;
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(
-    test_intrusive_calls_uni, ClassSet, class_set_list) {
+    test_virtual_ptr_dispatch_uni_method, IndirectionType, indirection_types) {
     // detail::trace_flags = 3;
     // detail::logs = &std::cerr;
     update_methods();
 
-    typename ClassSet::Bear bear;
-    BOOST_TEST(ClassSet::kick::fn(bear) == "growl");
+    Bear bear;
+    BOOST_TEST(kick::fn(virtual_ptr<Character>(bear)) == "growl");
 }
+
+#if 0
 
 template<typename Characters, typename Devices, typename Creatures>
 using fight = method<
     void,
     std::string(
         virtual_<typename Characters::Character&>,
-        virtual_<typename Devices::Device&>,
+        virtual_<typename Devices::Object&>,
         virtual_<typename Creatures::Creature&>)>;
 
 template<typename Characters, typename Devices, typename Creatures>
@@ -238,3 +204,4 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(
 }
 
 #endif
+} // namespace test_virtual_ptr_dispatch

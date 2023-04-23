@@ -215,8 +215,9 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
     using function_pointer_type = R (*)(detail::remove_virtual<A>...);
     using next_type = function_pointer_type;
 
-    enum { arity = boost::mp11::mp_size<virtual_argument_types>::value };
-    static_assert(arity > 0, "method must have at least one virtual parameter");
+    static constexpr auto arity = boost::mp11::mp_count_if<
+        declared_argument_types, detail::is_virtual>::value;
+    static_assert(arity > 0, "method must have at least one virtual argument");
 
     size_t slots_strides[arity == 1 ? 1 : 2 * arity - 1];
     // For 1-method: the offset of the method in the method table, which
@@ -257,7 +258,14 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
         using namespace detail;
 
         if constexpr (is_virtual<ArgType>::value) {
-            const word* mptr = get_mptr<method>(arg);
+            const word* mptr;
+
+            if constexpr (is_virtual_ptr<ArgType>) {
+                mptr = arg.method_table();
+            } else {
+                mptr = get_mptr<method>(arg);
+            }
+            
             call_trace << " slot = " << this->slots_strides[0];
             return mptr[this->slots_strides[0]].pf;
         } else {
@@ -534,6 +542,7 @@ class virtual_ptr {
   public:
     static constexpr bool is_direct = std::is_same_v<Indirection, direct>;
     static constexpr bool is_indirect = !is_direct;
+    using object_type = Class;
 
     explicit virtual_ptr(Class& obj) : obj(&obj) {
         if constexpr (is_direct) {
@@ -542,6 +551,11 @@ class virtual_ptr {
             mptr = Policy::context
                        .indirect_mptrs[Policy::context.hash(&typeid(obj))];
         }
+    }
+
+    template<class OtherClass>
+    explicit virtual_ptr(const virtual_ptr<OtherClass>& ptr)
+        : obj(&ptr.object()), mptr(ptr.method_table()) {
     }
 
     static virtual_ptr final(Class& obj) {

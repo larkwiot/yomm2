@@ -152,14 +152,14 @@ constexpr bool has_indirect_mptr_v =
 // virtual_ptr
 
 template<class>
-struct is_virtual_ptr_impl : std::false_type {};
+struct is_virtual_ptr_aux : std::false_type {};
 
 template<class Class, class Indirection, class Policy>
-struct is_virtual_ptr_impl<virtual_ptr<Class, Indirection, Policy>>
+struct is_virtual_ptr_aux<virtual_ptr<Class, Indirection, Policy>>
     : std::true_type {};
 
 template<typename T>
-constexpr bool is_virtual_ptr = is_virtual_ptr_impl<T>::value;
+constexpr bool is_virtual_ptr = is_virtual_ptr_aux<T>::value;
 
 // -------------
 // hash function
@@ -340,6 +340,21 @@ struct virtual_traits<T*> {
 };
 
 template<typename T>
+struct virtual_traits<virtual_ptr<T>> {
+    using polymorphic_type = std::remove_cv_t<T>;
+    static_assert(std::is_polymorphic_v<polymorphic_type>);
+
+    static auto ref(virtual_ptr<T> ptr) {
+        return ptr;
+    }
+
+    template<typename D>
+    static D cast(virtual_ptr<T> ptr) {
+        return D(optimal_cast<typename D::object_type&>(ptr.object()));
+    }
+};
+
+template<typename T>
 struct resolver_type_impl {
     using type = const T&;
 };
@@ -362,6 +377,11 @@ struct resolver_type_impl<T&&> {
 template<typename T>
 struct resolver_type_impl<virtual_<T>> {
     using type = decltype(virtual_traits<T>::ref(std::declval<T>()));
+};
+
+template<typename T>
+struct resolver_type_impl<virtual_ptr<T>> {
+    using type = virtual_ptr<T>;
 };
 
 template<typename T>
@@ -397,6 +417,9 @@ struct argument_traits {
 
 template<typename T>
 struct argument_traits<virtual_<T>> : virtual_traits<T> {};
+
+template<typename T>
+struct argument_traits<virtual_ptr<T>> : virtual_traits<virtual_ptr<T>> {};
 
 template<typename T>
 struct shared_ptr_traits {
@@ -496,6 +519,11 @@ struct select_spec_polymorphic_type {
 template<typename P, typename Q>
 struct select_spec_polymorphic_type<virtual_<P>, Q> {
     using type = polymorphic_type<Q>;
+};
+
+template<typename P, typename Q>
+struct select_spec_polymorphic_type<virtual_ptr<P>, virtual_ptr<Q>> {
+    using type = typename virtual_traits<virtual_ptr<Q>>::polymorphic_type;
 };
 
 template<typename MethodArgList, typename SpecArgList>
