@@ -265,7 +265,7 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
             } else {
                 mptr = get_mptr<method>(arg);
             }
-            
+
             call_trace << " slot = " << this->slots_strides[0];
             return mptr[this->slots_strides[0]].pf;
         } else {
@@ -280,7 +280,14 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
         using namespace detail;
 
         if constexpr (is_virtual<ArgType>::value) {
-            const word* mptr = get_mptr<method>(arg);
+            const word* mptr;
+            
+            if constexpr (is_virtual_ptr<ArgType>) {
+                mptr = arg.method_table();
+            } else {
+                mptr = get_mptr<method>(arg);
+            }
+
             auto slot = slots_strides[0];
 
             if constexpr (bool(trace_enabled & TRACE_CALLS)) {
@@ -312,7 +319,14 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
         using namespace detail;
 
         if constexpr (is_virtual<ArgType>::value) {
-            const word* mptr = get_mptr<method>(arg);
+            const word* mptr;
+            
+            if constexpr (is_virtual_ptr<ArgType>) {
+                mptr = arg.method_table();
+            } else {
+                mptr = get_mptr<method>(arg);
+            }
+
             auto slot = this->slots_strides[2 * VirtualArg - 1];
 
             if constexpr (bool(trace_enabled & TRACE_CALLS)) {
@@ -490,11 +504,6 @@ typename method<Key, R(A...), Policy>::next_type
 
 // clang-format off
 
-using mptr_type = detail::word*;
-
-template<typename, typename = policy::default_policy>
-mptr_type method_table;
-
 template<typename Class, typename... Rest>
 struct class_declaration : class_declaration<
     detail::remove_policy<Class, Rest...>,
@@ -511,11 +520,14 @@ struct class_declaration<types<Class, Bases...>, Policy> : detail::class_info {
     using bases_type = types<Bases...>;
 
     class_declaration() {
+        using namespace detail;
+
         ti = &typeid(class_type);
-        first_base = detail::type_id_list<bases_type>::begin;
-        last_base = detail::type_id_list<bases_type>::end;
+        first_base = type_id_list<bases_type>::begin;
+        last_base = type_id_list<bases_type>::end;
         Policy::catalog.classes.push_front(*this);
         is_abstract = std::is_abstract_v<class_type>;
+        indirect_method_table<class_type, Policy> = &method_table<class_type, Policy>;
         intrusive_mptr = &method_table<class_type, Policy>;
     }
 
@@ -539,14 +551,31 @@ using use_classes = typename detail::use_classes_aux<T...>::type;
 
 template<class Class, class Indirection, class Policy>
 class virtual_ptr {
+    template<typename, typename, class>
+    friend struct method;
+
+    template<class OtherClass, class OtherIndirection, class OtherPolicy>
+    friend class virtual_ptr;
+
   public:
     static constexpr bool is_direct = std::is_same_v<Indirection, direct>;
     static constexpr bool is_indirect = !is_direct;
     using object_type = Class;
 
-    explicit virtual_ptr(Class& obj) : obj(&obj) {
+    virtual_ptr() = delete;
+
+    template<
+        class OtherClass,
+        typename =
+            std::enable_if_t<!detail::is_virtual_ptr<OtherClass>, OtherClass>>
+    virtual_ptr(OtherClass& obj) : obj(&obj) {
         if constexpr (is_direct) {
-            mptr = Policy::context.mptrs[Policy::context.hash(&typeid(obj))];
+            if (typeid(obj) == typeid(OtherClass)) {
+                mptr = detail::method_table<OtherClass, Policy>;
+            } else {
+                mptr =
+                    Policy::context.mptrs[Policy::context.hash(&typeid(obj))];
+            }
         } else {
             mptr = Policy::context
                        .indirect_mptrs[Policy::context.hash(&typeid(obj))];
@@ -554,26 +583,26 @@ class virtual_ptr {
     }
 
     template<class OtherClass>
-    explicit virtual_ptr(const virtual_ptr<OtherClass>& ptr)
-        : obj(&ptr.object()), mptr(ptr.method_table()) {
+    explicit virtual_ptr(const virtual_ptr<OtherClass>& other)
+        : obj(other.obj), mptr(other.mptr) {
     }
 
-    static virtual_ptr final(Class& obj) {
-        virtual_ptr result;
-        result.obj = &obj;
+    template<class OtherClass>
+    static virtual_ptr final(OtherClass& obj) {
+        using namespace detail;
 
-        if constexpr (is_direct) {
-            result.mptr = detail::check_method_pointer(
-                Policy::context, yomm2::method_table<Class, Policy>,
-                &typeid(obj));
-        } else {
-            detail::check_method_pointer(
-                Policy::context, yomm2::method_table<Class, Policy>,
-                &typeid(obj));
-            result.mptr = &yomm2::method_table<Class, Policy>;
+        if constexpr (debug) {
+            if (typeid(obj) != typeid(OtherClass)) {
+                error_handler(method_table_error{&typeid(obj)});
+            }
         }
 
-        return result;
+        if constexpr (is_direct) {
+            return virtual_ptr(&obj, detail::method_table<Class, Policy>);
+        } else {
+            return virtual_ptr(
+                &obj, detail::indirect_method_table<Class, Policy>);
+        }
     }
 
     auto operator->() const {
@@ -594,14 +623,14 @@ class virtual_ptr {
     }
 
   private:
-    virtual_ptr() {
+    using mptr_type =
+        std::conditional_t<is_direct, const detail::word*, detail::mptr_type*>;
+
+    virtual_ptr(Class* obj, mptr_type mptr) : obj(obj), mptr(mptr) {
     }
 
     Class* obj;
-    std::conditional_t<is_direct, const detail::word*, mptr_type*> mptr;
-
-    template<typename, typename, class>
-    friend struct method;
+    mptr_type mptr;
 };
 
 // =============================================================================

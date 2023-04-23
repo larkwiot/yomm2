@@ -7,6 +7,14 @@ namespace yorel {
 namespace yomm2 {
 namespace detail {
 
+using mptr_type = detail::word*;
+
+template<typename, typename = policy::default_policy>
+mptr_type method_table;
+
+template<typename, typename = policy::default_policy>
+mptr_type* indirect_method_table;
+
 struct yomm2_end_of_dump {};
 
 template<typename T>
@@ -88,8 +96,8 @@ struct is_virtual : std::false_type {};
 template<typename T>
 struct is_virtual<virtual_<T>> : std::true_type {};
 
-template<typename T>
-struct is_virtual<virtual_ptr<T>> : std::true_type {};
+template<typename T, typename Indirection, class Policy>
+struct is_virtual<virtual_ptr<T, Indirection, Policy>> : std::true_type {};
 
 template<typename T>
 struct remove_virtual_ {
@@ -151,7 +159,7 @@ constexpr bool has_indirect_mptr_v =
 // -----------
 // virtual_ptr
 
-template<class>
+template<typename>
 struct is_virtual_ptr_aux : std::false_type {};
 
 template<class Class, class Indirection, class Policy>
@@ -339,18 +347,19 @@ struct virtual_traits<T*> {
     }
 };
 
-template<typename T>
-struct virtual_traits<virtual_ptr<T>> {
-    using polymorphic_type = std::remove_cv_t<T>;
+template<class Class, class Indirection, class Policy>
+struct virtual_traits<virtual_ptr<Class, Indirection, Policy>> {
+    using polymorphic_type = Class;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static auto ref(virtual_ptr<T> ptr) {
+    static auto ref(virtual_ptr<Class, Indirection, Policy> ptr) {
         return ptr;
     }
 
-    template<typename D>
-    static D cast(virtual_ptr<T> ptr) {
-        return D(optimal_cast<typename D::object_type&>(ptr.object()));
+    template<typename Derived>
+    static Derived cast(virtual_ptr<Class, Indirection, Policy> ptr) {
+        return Derived(
+            optimal_cast<typename Derived::object_type&>(ptr.object()));
     }
 };
 
@@ -379,9 +388,9 @@ struct resolver_type_impl<virtual_<T>> {
     using type = decltype(virtual_traits<T>::ref(std::declval<T>()));
 };
 
-template<typename T>
-struct resolver_type_impl<virtual_ptr<T>> {
-    using type = virtual_ptr<T>;
+template<class Class, class Indirection, class Policy>
+struct resolver_type_impl<virtual_ptr<Class, Indirection, Policy>> {
+    using type = virtual_ptr<Class, Indirection, Policy>;
 };
 
 template<typename T>
@@ -418,8 +427,9 @@ struct argument_traits {
 template<typename T>
 struct argument_traits<virtual_<T>> : virtual_traits<T> {};
 
-template<typename T>
-struct argument_traits<virtual_ptr<T>> : virtual_traits<virtual_ptr<T>> {};
+template<class Class, class Indirection, class Policy>
+struct argument_traits<virtual_ptr<Class, Indirection, Policy>>
+    : virtual_traits<virtual_ptr<Class, Indirection, Policy>> {};
 
 template<typename T>
 struct shared_ptr_traits {
@@ -521,9 +531,11 @@ struct select_spec_polymorphic_type<virtual_<P>, Q> {
     using type = polymorphic_type<Q>;
 };
 
-template<typename P, typename Q>
-struct select_spec_polymorphic_type<virtual_ptr<P>, virtual_ptr<Q>> {
-    using type = typename virtual_traits<virtual_ptr<Q>>::polymorphic_type;
+template<typename P, typename Q, class Indirection, class Policy>
+struct select_spec_polymorphic_type<
+    virtual_ptr<P, Indirection, Policy>, virtual_ptr<Q, Indirection, Policy>> {
+    using type = typename virtual_traits<
+        virtual_ptr<Q, Indirection, Policy>>::polymorphic_type;
 };
 
 template<typename MethodArgList, typename SpecArgList>

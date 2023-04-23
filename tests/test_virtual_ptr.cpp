@@ -21,7 +21,6 @@ struct indirect {};
 } // namespace yomm2
 } // namespace yorel
 
-
 using indirection_types = types<direct, indirect>;
 
 template<typename>
@@ -47,10 +46,16 @@ namespace direct_virtual_ptr {
 struct key;
 using test_policy = test_policy_<key>;
 
+Cat cat;
+virtual_ptr<Cat> v_cat(cat);
+virtual_ptr<Animal> v_animal(v_cat);
+
 register_classes(test_policy, Animal, Cat);
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(
     test_virtual_ptr, Indirection, indirection_types) {
+    using namespace detail;
+
     detail::update_methods(test_policy::catalog, test_policy::context);
 
     using vptr_animal = virtual_ptr<Animal, Indirection, test_policy>;
@@ -90,11 +95,13 @@ struct Animal {
     }
 };
 
+using test_policy = test_policy_<Animal>;
+
 struct Dog : Animal {};
 
-register_classes(Animal, Dog);
+register_classes(Animal, Dog, test_policy);
 
-declare_method(std::string, kick, (virtual_<Animal&>));
+declare_method(std::string, kick, (virtual_<Animal&>), test_policy);
 
 BOOST_AUTO_TEST_CASE(test_bad_virtual_ptr) {
     auto prev_handler = set_error_handler([](const error_type& ev) {
@@ -109,7 +116,8 @@ BOOST_AUTO_TEST_CASE(test_bad_virtual_ptr) {
 
     try {
         Dog snoopy;
-        virtual_ptr<Animal>::final(snoopy);
+        Animal& animal = snoopy;
+        virtual_ptr<Animal, direct, test_policy>::final(animal);
     } catch (const method_table_error& error) {
         BOOST_TEST(error.ti->name() == typeid(Dog).name());
         return;
@@ -145,14 +153,13 @@ struct Axe : Object {};
 
 use_classes<Character, Warrior, Object, Axe, Bear> YOMM2_GENSYM;
 
-struct YOMM2_SYMBOL(kick);
-using kick = method<YOMM2_SYMBOL(kick), std::string(virtual_ptr<Character>)>;
+using kick = method<void, std::string(virtual_ptr<Character>)>;
 
 static auto definition(virtual_ptr<Bear>) {
     return std::string("growl");
 }
 
-typename kick::template add_function<definition> YOMM2_GENSYM;
+kick::add_function<definition> YOMM2_GENSYM;
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(
     test_virtual_ptr_dispatch_uni_method, IndirectionType, indirection_types) {
@@ -164,44 +171,35 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(
     BOOST_TEST(kick::fn(virtual_ptr<Character>(bear)) == "growl");
 }
 
-#if 0
-
-template<typename Characters, typename Devices, typename Creatures>
-using fight = method<
-    void,
-    std::string(
-        virtual_<typename Characters::Character&>,
-        virtual_<typename Devices::Object&>,
-        virtual_<typename Creatures::Creature&>)>;
-
-template<typename Characters, typename Devices, typename Creatures>
-std::string kill_bear(
-    typename Characters::Warrior&, typename Devices::Axe&,
-    typename Creatures::Bear&) {
-    return "kill bear";
-}
-using class_set_product = boost::mp11::mp_product<
-    std::tuple, class_set_list, class_set_list, class_set_list>;
-
 BOOST_AUTO_TEST_CASE_TEMPLATE(
-    test_intrusive_calls_multi, Tuple, class_set_product) {
+    test_virtual_ptr_dispatch_multi_method, IndirectionType, indirection_types) {
     // detail::trace_flags = 3;
     // detail::logs = &std::cerr;
-    using Characters = boost::mp11::mp_first<Tuple>;
-    using Devices = boost::mp11::mp_second<Tuple>;
-    using Creatures = boost::mp11::mp_third<Tuple>;
 
-    using fight_type = fight<Characters, Devices, Creatures>;
-    static typename fight_type::template add_function<
-        kill_bear<Characters, Devices, Creatures>>
-        YOMM2_GENSYM;
+    using fight = method<
+        void,
+        std::string(
+            virtual_ptr<Character, IndirectionType>,
+            virtual_ptr<Object, IndirectionType>,
+            virtual_ptr<Character, IndirectionType>)>;
+
+    struct definition {
+        static std::string
+        fn(virtual_ptr<Warrior, IndirectionType>,
+           virtual_ptr<Axe, IndirectionType>,
+           virtual_ptr<Bear, IndirectionType>) {
+            return "kill bear";
+        }
+    };
+
+    static typename fight::template add_definition<definition> YOMM2_GENSYM;
+
     update_methods();
 
-    typename Characters::Warrior warrior;
-    typename Devices::Axe axe;
-    typename Creatures::Bear bear;
-    BOOST_TEST(fight_type::fn(warrior, axe, bear) == "kill bear");
+    Warrior warrior;
+    Axe axe;
+    Bear bear;
+   BOOST_TEST(fight::fn(warrior, axe, bear) == "kill bear");
 }
 
-#endif
 } // namespace test_virtual_ptr_dispatch
