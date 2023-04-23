@@ -281,7 +281,7 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
 
         if constexpr (is_virtual<ArgType>::value) {
             const word* mptr;
-            
+
             if constexpr (is_virtual_ptr<ArgType>) {
                 mptr = arg.method_table();
             } else {
@@ -320,7 +320,7 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
 
         if constexpr (is_virtual<ArgType>::value) {
             const word* mptr;
-            
+
             if constexpr (is_virtual_ptr<ArgType>) {
                 mptr = arg.method_table();
             } else {
@@ -566,8 +566,7 @@ class virtual_ptr {
 
     template<
         class OtherClass,
-        typename =
-            std::enable_if_t<!detail::is_virtual_ptr<OtherClass>, OtherClass>>
+        typename = std::enable_if_t<!detail::is_virtual_ptr<OtherClass>, void>>
     virtual_ptr(OtherClass& obj) : obj(&obj) {
         if constexpr (is_direct) {
             if (typeid(obj) == typeid(OtherClass)) {
@@ -582,8 +581,10 @@ class virtual_ptr {
         }
     }
 
+    // TODO: make it work across different policies
     template<class OtherClass>
-    explicit virtual_ptr(const virtual_ptr<OtherClass>& other)
+    explicit virtual_ptr(
+        const virtual_ptr<OtherClass, Indirection, Policy>& other)
         : obj(other.obj), mptr(other.mptr) {
     }
 
@@ -603,6 +604,17 @@ class virtual_ptr {
             return virtual_ptr(
                 &obj, detail::indirect_method_table<Class, Policy>);
         }
+    }
+
+    // TODO: make it work across different policies
+    template<
+        class OtherVirtualPtr,
+        typename =
+            std::enable_if_t<detail::is_virtual_ptr<OtherVirtualPtr>, void>>
+    OtherVirtualPtr cast() const {
+        return OtherVirtualPtr(
+            &detail::optimal_cast<typename OtherVirtualPtr::object_type&>(*obj),
+            mptr);
     }
 
     auto operator->() const {

@@ -358,8 +358,7 @@ struct virtual_traits<virtual_ptr<Class, Indirection, Policy>> {
 
     template<typename Derived>
     static Derived cast(virtual_ptr<Class, Indirection, Policy> ptr) {
-        return Derived(
-            optimal_cast<typename Derived::object_type&>(ptr.object()));
+        return ptr.template cast<Derived>();
     }
 };
 
