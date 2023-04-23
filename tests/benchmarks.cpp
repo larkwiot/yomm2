@@ -27,9 +27,9 @@ int main() {}
 
 using namespace yorel::yomm2;
 using yorel::yomm2::detail::dump_type;
+using yorel::yomm2::detail::mptr_type;
+using yorel::yomm2::detail::method_table;
 using namespace boost::mp11;
-namespace yomm = yorel::yomm2;
-namespace mp11 = boost::mp11;
 
 #if !defined(NDEBUG)
 enum { NH = 2 };
@@ -124,7 +124,7 @@ using method_dispatch_types = std::tuple<
     indirect_intrusive_dispatch
 >;
 
-using dispatch_types = mp11::mp_append<
+using dispatch_types = mp_append<
     std::tuple<
         no_dispatch,
         virtual_dispatch
@@ -448,7 +448,7 @@ int main(int argc, char** argv) {
         std::tuple,
         apply_product<
             templates<Benchmark>,
-            mp11::mp_remove<dispatch_types, no_dispatch>,
+            mp_remove<dispatch_types, no_dispatch>,
             arity_types,
             inheritance_types
         >

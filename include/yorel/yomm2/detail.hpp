@@ -573,7 +573,16 @@ inline auto get_tip(const T& arg) {
 inline auto
 check_method_pointer(const context& ctx, const word* mptr, ti_ptr key) {
     if constexpr (debug) {
-        if (mptr != ctx.mptrs[ctx.hash(key)]) {
+        auto p = reinterpret_cast<const char*>(mptr);
+
+        if (p < reinterpret_cast<const char*>(ctx.gv.data()) ||
+            p >= reinterpret_cast<const char*>(ctx.gv.data()) + ctx.gv.size()) {
+            error_handler(method_table_error{key});
+        }
+
+        auto index = ctx.hash(key);
+
+        if (index >= ctx.mptrs.size() || mptr != ctx.mptrs[index]) {
             error_handler(method_table_error{key});
         }
     }
@@ -588,16 +597,13 @@ inline auto get_mptr(const ArgType& arg) {
 
     if constexpr (has_indirect_mptr_v<ArgType>) {
         mptr = *arg.yomm2_mptr();
-
-        if constexpr (debug) {
-            check_method_pointer(policy::context, mptr, &typeid(arg));
-        }
+        check_method_pointer(policy::context, mptr, &typeid(arg));
     } else if constexpr (has_direct_mptr_v<ArgType>) {
         mptr = arg.yomm2_mptr();
-
-        if constexpr (debug) {
-            check_method_pointer(policy::context, mptr, &typeid(arg));
-        }
+        check_method_pointer(policy::context, mptr, &typeid(arg));
+    } else if constexpr (is_virtual_ptr<ArgType>) {
+        mptr = arg.method_table();
+        check_method_pointer(policy::context, mptr, &typeid(arg));
     } else {
         auto key = &typeid(arg);
 

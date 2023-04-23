@@ -22,10 +22,10 @@ BOOST_AUTO_TEST_CASE(test_direct_intrusive_mptr) {
     struct Cat : Animal, derived<Cat> {};
 
     Animal animal;
-    BOOST_TEST(animal.yomm2_mptr() == method_table<Animal>);
+    BOOST_TEST(animal.yomm2_mptr() == detail::method_table<Animal>);
 
     Cat cat;
-    BOOST_TEST(cat.yomm2_mptr() == method_table<Cat>);
+    BOOST_TEST(cat.yomm2_mptr() == detail::method_table<Cat>);
 }
 
 BOOST_AUTO_TEST_CASE(test_indirect_intrusive_mptr) {
@@ -35,10 +35,10 @@ BOOST_AUTO_TEST_CASE(test_indirect_intrusive_mptr) {
     struct Cat : Animal, derived<Cat> {};
 
     Animal animal;
-    BOOST_TEST(animal.yomm2_mptr() == &method_table<Animal>);
+    BOOST_TEST(animal.yomm2_mptr() == &detail::method_table<Animal>);
 
     Cat cat;
-    BOOST_TEST(cat.yomm2_mptr() == &method_table<Cat>);
+    BOOST_TEST(cat.yomm2_mptr() == &detail::method_table<Cat>);
 }
 
 #ifndef NDEBUG

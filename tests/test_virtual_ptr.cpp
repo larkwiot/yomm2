@@ -107,10 +107,13 @@ BOOST_AUTO_TEST_CASE(test_final) {
         Dog snoopy;
         Animal& animal = snoopy;
         virtual_ptr<Animal, test_policy>::final(animal);
+        set_error_handler(prev_handler);
     } catch (const method_table_error& error) {
         BOOST_TEST(error.ti->name() == typeid(Dog).name());
+        set_error_handler(prev_handler);
         return;
     } catch (...) {
+        set_error_handler(prev_handler);
         BOOST_FAIL("wrong exception");
     }
 
@@ -149,7 +152,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(
         YOMM2_GENSYM;
 
     using kick =
-        method<void, std::string(virtual_ptr<Character, Policy>), Policy>;
+        method<void, std::string(virtual_ptr<Character, Policy>)/*, Policy*/>;
 
     struct kick_definition {
         static std::string fn(virtual_ptr<Bear, Policy>) {

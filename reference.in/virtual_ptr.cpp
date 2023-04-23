@@ -63,17 +63,17 @@ class Animal {
 class Dog : public Animal {
 };
 
-declare_method(void, kick, (virtual_ptr<Animal&>));
+declare_method(void, kick, (virtual_ptr<Animal>));
 
-declare_method(void, meet, (virtual_<Animal&>, virtual_<Animal&>));
+declare_method(void, meet, (virtual_ptr<Animal>, virtual_ptr<Animal>));
 
 #endif
 
-define_method(void, kick, (virtual_ptr<Dog> & dog)) {
+define_method(void, kick, (virtual_ptr<Dog> dog)) {
     // bark
 }
 
-define_method(void, meet, (Dog& a, Dog& b)) {
+define_method(void, meet, (virtual_ptr<Dog> a, virtual_ptr<Dog> b)) {
     // wag tail
 }
 
@@ -81,7 +81,7 @@ void call_kick(virtual_ptr<Animal> animal) {
     kick(animal);
 }
 
-void call_meet(Animal& a, Animal& b) {
+void call_meet(virtual_ptr<Animal> a, virtual_ptr<Animal> b) {
     meet(a, b);
 }
 

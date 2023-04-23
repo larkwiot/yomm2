@@ -258,14 +258,7 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
         using namespace detail;
 
         if constexpr (is_virtual<ArgType>::value) {
-            const word* mptr;
-
-            if constexpr (is_virtual_ptr<ArgType>) {
-                mptr = arg.method_table();
-            } else {
-                mptr = get_mptr<method>(arg);
-            }
-
+            const word* mptr = get_mptr<method>(arg);
             call_trace << " slot = " << this->slots_strides[0];
             return mptr[this->slots_strides[0]].pf;
         } else {

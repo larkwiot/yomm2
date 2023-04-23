@@ -16,13 +16,13 @@ struct root;
 
 template<class Class, class Policy>
 struct root<Class, direct, Policy> {
-    mptr_type YoMm2_S_mptr_{method_table<Class, Policy>};
+    detail::mptr_type YoMm2_S_mptr_{detail::method_table<Class, Policy>};
 
-    mptr_type yomm2_mptr() const {
+    detail::mptr_type yomm2_mptr() const {
         return YoMm2_S_mptr_;
     };
 
-    void yomm2_mptr(mptr_type mptr) {
+    void yomm2_mptr(detail::mptr_type mptr) {
         YoMm2_S_mptr_ = mptr;
     };
 
@@ -31,13 +31,13 @@ struct root<Class, direct, Policy> {
 
 template<class Class, class Policy>
 struct root<Class, indirect, Policy> {
-    mptr_type* YoMm2_S_mptr_{&method_table<Class, Policy>};
+    detail::mptr_type* YoMm2_S_mptr_{&detail::method_table<Class, Policy>};
 
-    mptr_type* yomm2_mptr() const {
+    detail::mptr_type* yomm2_mptr() const {
         return YoMm2_S_mptr_;
     };
 
-    void yomm2_mptr(mptr_type* mptr) {
+    void yomm2_mptr(detail::mptr_type* mptr) {
         YoMm2_S_mptr_ = mptr;
     };
 
@@ -52,11 +52,13 @@ struct derived<Class> {
     derived() {
         if constexpr (detail::has_direct_mptr_v<Class>) {
             static_cast<Class*>(this)->yomm2_mptr(
-                method_table<Class, decltype(Class::yomm2_mptr(int()))>);
+                detail::method_table<
+                    Class, decltype(Class::yomm2_mptr(int()))>);
         } else {
             static_assert(detail::has_indirect_mptr_v<Class>);
             static_cast<Class*>(this)->yomm2_mptr(
-                &method_table<Class, decltype(Class::yomm2_mptr(int()))>);
+                &detail::method_table<
+                    Class, decltype(Class::yomm2_mptr(int()))>);
         }
     }
 };
@@ -65,11 +67,12 @@ template<class Class, class Base1, class... Bases>
 struct derived<Class, Base1, Bases...> {
     derived() {
         if constexpr (detail::has_direct_mptr_v<Base1>) {
-            yomm2_mptr(method_table<Class, decltype(Base1::yomm2_mptr(int()))>);
+            yomm2_mptr(detail::method_table<
+                       Class, decltype(Base1::yomm2_mptr(int()))>);
         } else {
             static_assert(detail::has_indirect_mptr_v<Base1>);
-            yomm2_mptr(
-                &method_table<Class, decltype(Base1::yomm2_mptr(int()))>);
+            yomm2_mptr(&detail::method_table<
+                       Class, decltype(Base1::yomm2_mptr(int()))>);
         }
     }
 
@@ -78,7 +81,8 @@ struct derived<Class, Base1, Bases...> {
     };
 
     void yomm2_mptr(std::conditional_t<
-                    detail::has_direct_mptr_v<Base1>, mptr_type, mptr_type*>
+                    detail::has_direct_mptr_v<Base1>, detail::mptr_type,
+                    detail::mptr_type*>
                         mptr) {
         auto this_ = static_cast<Class*>(this);
         static_cast<Base1*>(this_)->yomm2_mptr(mptr);

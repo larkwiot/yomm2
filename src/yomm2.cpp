@@ -1112,6 +1112,14 @@ void default_error_handler(const error_type& error_v) {
         return;
     }
 
+    if (auto error = std::get_if<method_table_error>(&error_v)) {
+        if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
+            std::cerr << "invalid method table for " << error->ti->name()
+                      << "\n";
+        }
+        return;
+    }
+
     if (auto error = std::get_if<hash_search_error>(&error_v)) {
         if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
             std::cerr << "could not find hash factors after " << error->attempts
