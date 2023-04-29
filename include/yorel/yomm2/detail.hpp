@@ -601,7 +601,7 @@ inline auto get_tip(const T& arg) {
 template<class Policy>
 inline auto check_method_pointer(const word* mptr, ti_ptr key) {
     auto& ctx = Policy::context;
-    if constexpr (debug) {
+    if constexpr (Policy::enable_runtime_checks) {
         auto p = reinterpret_cast<const char*>(mptr);
 
         if (p < reinterpret_cast<const char*>(ctx.gv.data()) ||

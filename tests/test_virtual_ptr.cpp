@@ -41,7 +41,7 @@ template<typename Key, bool Indirect>
 struct test_policy_ : default_policy {
     static struct catalog catalog;
     static struct context context;
-    static constexpr bool indirect_method_pointer = Indirect;
+    static constexpr bool use_indirect_method_pointers = Indirect;
 };
 
 template<typename Key, bool Indirect>
@@ -99,8 +99,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_virtual_ptr, Policy, policy_types<key>) {
 }
 } // namespace test_virtual_ptr
 
-#ifndef NDEBUG
-
 namespace bad_virtual_ptr {
 
 struct key {};
@@ -133,13 +131,16 @@ BOOST_AUTO_TEST_CASE(test_final) {
         BOOST_FAIL("wrong exception");
     }
 
-    BOOST_FAIL("did not throw");
+    if constexpr (test_policy::enable_runtime_checks) {
+        BOOST_FAIL("did not throw");
+    } else {
+        BOOST_FAIL(
+            "should not have thrown, because runtime checks are not enabled");
+    }
 
     set_error_handler(prev_handler);
 }
 } // namespace bad_virtual_ptr
-
-#endif
 
 namespace test_virtual_ptr_dispatch {
 

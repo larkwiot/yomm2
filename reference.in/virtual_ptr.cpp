@@ -20,7 +20,7 @@ class virtual_ptr;
 ```
 ---
 `virtual_ptr` is a fat pointer that consists of a pointer to an object, and a
-pointer to the method table for the object. Calls to methods through a
+pointer to its associated method table. Calls to methods through a
 `virtual_ptr` are as efficient as virtual function calls, because they do not
 require a hash table lookup, unlike calls made using the orthogonal mode.
 Instead, the lookup is done once, when the pointer is constructed, or not at
@@ -28,7 +28,6 @@ all, when using `virtual_ptr::final`.
 
 In spite of the 'ptr' in its name, `virtual_ptr` should be viewed more like a
 *reference*, because it is not possible to create a null `virtual_ptr` [^1].
-
 
 
 ## member functions
@@ -42,17 +41,56 @@ In spite of the 'ptr' in its name, `virtual_ptr` should be viewed more like a
 
 ### observers
 
-|                               |                 |
-| ----------------------------- | --------------- |
+|                               |                                 |
+| ----------------------------- | ------------------------------- |
 | [operator*](#deref-operator)  | dereferences the stored pointer |
 | [operator->](#arrow-operator) | dereferences the stored pointer |
 
 
 ## static member functions
 
-|                               |                              |
-| ----------------------------- | ---------------------------- |
-| [final](#final)               | returns a new virtual_ptr |
+|                 |                           |
+| --------------- | ------------------------- |
+| [final](#final) | returns a new virtual_ptr |
+
+### virtual_ptr&lt;Class, Policy&gt;::virtual_ptr
+
+|                                                                                        |     |
+| -------------------------------------------------------------------------------------- | --- |
+| `template<class OtherClass> virtual_ptr(OtherClass& obj)`                              | (1) |
+| `template<class OtherClass> virtual_ptr(const virtual_ptr<OtherClass, Policy>& other)` | (2) |
+
+Constructs a new `virtual_ptr`, from a reference to an object or another
+`virtual_ptr`.
+
+---
+
+For the purposes of the description below, a reference type `OtherClass&` is
+said to be compatible with a reference `Class&` if `OtherClass&` is convertible
+to `Class&`.
+
+---
+
+(1) Constructs a `virtual_ptr` that contains a reference to `obj`, which must be
+compatible with `Class`, and a pointer to the method table corresponding to
+`obj`'s *dynamic* type. If the dynamic type of `obj` is the same as `OtherClass`
+(i.e. `typeid(obj) == typeid(OtherClass)`), the hash table is not looked up.
+
+(2) Constructs a `virtual_ptr` that contains a reference to `obj`, and a pointer
+to the method table corresponding to `obj`'s *dynamic* type. If the dynamic type
+of `obj` is the same as `OtherClass` (i.e. `typeid(obj) == typeid(OtherClass)`),
+the hash table is not looked up.
+
+The `Policy` must be the same for both `virtual_ptr`s. This is because
+constructing a `virtual_ptr` with a different `Policy` will incur the cost of a
+hash table lookup. This can be achieved by creating a new `virtual_ptr` from the
+referenced object:
+
+```
+virtual_ptr<Animal, some_policy> ptr1(animal);
+// ...
+virtual_ptr<Animal, another_policy> ptr2(*ptr1);
+```
 
 #endif
 

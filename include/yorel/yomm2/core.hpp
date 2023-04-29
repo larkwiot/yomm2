@@ -164,7 +164,7 @@ struct catalog {
 namespace policy {
 
 struct abstract_policy {
-    static constexpr bool indirect_method_pointer = false;
+    static constexpr bool use_indirect_method_pointers = false;
     #ifdef NDEBUG
     static constexpr bool enable_runtime_checks = false;
     #else
@@ -558,7 +558,7 @@ class virtual_ptr {
     friend class virtual_ptr;
 
   public:
-    static constexpr bool is_indirect = Policy::indirect_method_pointer;
+    static constexpr bool is_indirect = Policy::use_indirect_method_pointers;
     using object_type = Class;
 
     virtual_ptr() = delete;
