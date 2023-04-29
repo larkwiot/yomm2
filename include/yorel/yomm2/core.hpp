@@ -258,7 +258,7 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
         using namespace detail;
 
         if constexpr (is_virtual<ArgType>::value) {
-            const word* mptr = get_mptr<method>(arg);
+            const word* mptr = get_mptr<method, ArgType>(arg);
             call_trace << " slot = " << this->slots_strides[0];
             return mptr[this->slots_strides[0]].pf;
         } else {
@@ -278,7 +278,7 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
             if constexpr (is_virtual_ptr<ArgType>) {
                 mptr = arg.method_table();
             } else {
-                mptr = get_mptr<method>(arg);
+                mptr = get_mptr<method, ArgType>(arg);
             }
 
             auto slot = slots_strides[0];
@@ -317,7 +317,7 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
             if constexpr (is_virtual_ptr<ArgType>) {
                 mptr = arg.method_table();
             } else {
-                mptr = get_mptr<method>(arg);
+                mptr = get_mptr<method, ArgType>(arg);
             }
 
             auto slot = this->slots_strides[2 * VirtualArg - 1];
@@ -347,8 +347,8 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
         }
     }
 
-    template<typename... T>
-    auto resolve(const T&... args) const {
+    template<typename... ArgType>
+    auto resolve(detail::resolver_type<ArgType>... args) const {
         using namespace detail;
 
         if constexpr (bool(trace_enabled & TRACE_CALLS)) {
@@ -358,9 +358,9 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
         void* pf;
 
         if constexpr (arity == 1) {
-            pf = resolve_uni<A...>(args...);
+            pf = resolve_uni<ArgType...>(args...);
         } else {
-            pf = resolve_multi_first<0, A...>(args...);
+            pf = resolve_multi_first<0, ArgType...>(args...);
         }
 
         call_trace << " pf = " << pf << "\n";
@@ -370,7 +370,7 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
 
     return_type operator()(detail::remove_virtual<A>... args) const {
         using namespace detail;
-        return resolve(argument_traits<A>::ref(args)...)(
+        return resolve<A...>(argument_traits<A>::ref(args)...)(
             std::forward<remove_virtual<A>>(args)...);
     }
 
@@ -617,6 +617,10 @@ class virtual_ptr {
     }
 
     auto& object() const {
+        return *obj;
+    }
+
+    auto& operator*() const {
         return *obj;
     }
 

@@ -310,6 +310,10 @@ struct virtual_traits<T&> {
         return arg;
     }
 
+    static auto key(const T& arg) {
+        return &typeid(arg);
+    }
+
     template<typename D>
     static D& cast(T& obj) {
         return optimal_cast<D&>(obj);
@@ -325,6 +329,10 @@ struct virtual_traits<T&&> {
         return arg;
     }
 
+    static auto key(const T& arg) {
+        return &typeid(arg);
+    }
+
     template<typename D>
     static D&& cast(T&& obj) {
         return optimal_cast<D&&>(obj);
@@ -336,8 +344,12 @@ struct virtual_traits<T*> {
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static const T& ref(const T* arg) {
-        return *arg;
+    static auto ref(const T* arg) {
+        return arg;
+    }
+
+    static auto key(const T* arg) {
+        return &typeid(*arg);
     }
 
     template<typename D>
@@ -353,6 +365,10 @@ struct virtual_traits<virtual_ptr<Class, Policy>> {
 
     static auto ref(virtual_ptr<Class, Policy> ptr) {
         return ptr;
+    }
+
+    static auto key(virtual_ptr<Class, Policy> arg) {
+        return &typeid(*arg);
     }
 
     template<typename Derived>
@@ -398,6 +414,10 @@ template<typename T>
 struct argument_traits {
     static const T& ref(const T& arg) {
         return arg;
+    }
+
+    static auto key(const T& arg) {
+        return &typeid(arg);
     }
 
 #if defined(_MSC_VER) && (_MSC_VER / 100) <= 19
@@ -453,8 +473,12 @@ struct virtual_traits<std::shared_ptr<T>> {
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static const T& ref(const std::shared_ptr<T>& arg) {
-        return *arg;
+    static const std::shared_ptr<T>& ref(const std::shared_ptr<T>& arg) {
+        return arg;
+    }
+
+    static auto key(const std::shared_ptr<T>& arg) {
+        return &typeid(*arg);
     }
 
     template<class DERIVED>
@@ -486,8 +510,12 @@ struct virtual_traits<const std::shared_ptr<T>&> {
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static const T& ref(const std::shared_ptr<T>& arg) {
-        return *arg;
+    static const std::shared_ptr<T>& ref(const std::shared_ptr<T>& arg) {
+        return arg;
+    }
+
+    static auto key(const std::shared_ptr<T>& arg) {
+        return &typeid(*arg);
     }
 
     template<class DERIVED>
@@ -564,7 +592,7 @@ struct type_id_list<types<>> {
 template<typename ArgType, typename T>
 inline auto get_tip(const T& arg) {
     if constexpr (is_virtual<ArgType>::value) {
-        return &typeid(virtual_traits<ArgType>::ref(arg));
+        return virtual_traits<ArgType>::key(arg);
     } else {
         return &typeid(arg);
     }
@@ -576,7 +604,7 @@ check_method_pointer(const context& ctx, const word* mptr, ti_ptr key) {
         auto p = reinterpret_cast<const char*>(mptr);
 
         if (p < reinterpret_cast<const char*>(ctx.gv.data()) ||
-            p >= reinterpret_cast<const char*>(ctx.gv.data()) + ctx.gv.size()) {
+            p >= reinterpret_cast<const char*>(ctx.gv.data() + ctx.gv.size())) {
             error_handler(method_table_error{key});
         }
 
@@ -591,21 +619,24 @@ check_method_pointer(const context& ctx, const word* mptr, ti_ptr key) {
 }
 
 template<typename Method, typename ArgType>
-inline auto get_mptr(const ArgType& arg) {
+inline auto get_mptr(resolver_type<ArgType> arg) {
     const word* mptr;
     using policy = typename Method::policy_type;
 
     if constexpr (has_indirect_mptr_v<ArgType>) {
         mptr = *arg.yomm2_mptr();
-        check_method_pointer(policy::context, mptr, &typeid(arg));
+        check_method_pointer(
+            policy::context, mptr, virtual_traits<ArgType>::key(arg));
     } else if constexpr (has_direct_mptr_v<ArgType>) {
         mptr = arg.yomm2_mptr();
-        check_method_pointer(policy::context, mptr, &typeid(arg));
+        check_method_pointer(
+            policy::context, mptr, virtual_traits<ArgType>::key(arg));
     } else if constexpr (is_virtual_ptr<ArgType>) {
         mptr = arg.method_table();
-        check_method_pointer(policy::context, mptr, &typeid(arg));
+        check_method_pointer(
+            policy::context, mptr, virtual_traits<ArgType>::key(arg));
     } else {
-        auto key = &typeid(arg);
+        auto key = virtual_traits<ArgType>::key(arg);
 
         if constexpr (bool(trace_enabled & TRACE_CALLS)) {
             call_trace << "  key = " << key;
@@ -682,6 +713,9 @@ struct use_classes_aux<types<Classes...>, ClassLists...>
     : mp11::mp_apply<
           use_classes_aux, mp11::mp_append<types<Classes...>, ClassLists...>> {
 };
+
+std::ostream* log_on(std::ostream* os);
+std::ostream* log_off();
 
 } // namespace detail
 } // namespace yomm2

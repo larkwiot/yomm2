@@ -38,7 +38,7 @@
 
 #include <yorel/yomm2/core.hpp>
 
-#if defined(YOMM2_ENABLE_TRACE) && (YOMM2_ENABLE_TRACE & 1)
+#if defined(YOMM2_TRACE) && (YOMM2_TRACE & 1)
     #include <iostream>
 #endif
 
@@ -1102,14 +1102,14 @@ void default_error_handler(const error_type& error_v) {
         old_error.method_name = error->method->name();
         method_call_error_handler_p(
             std::move(old_error), error->arity, error->tis);
-        return;
+        abort();
     }
 
     if (auto error = std::get_if<unknown_class_error>(&error_v)) {
         if constexpr (bool(trace_enabled)) {
             std::cerr << "unknown class " << error->ti->name() << "\n";
         }
-        return;
+        abort();
     }
 
     if (auto error = std::get_if<method_table_error>(&error_v)) {
@@ -1117,7 +1117,7 @@ void default_error_handler(const error_type& error_v) {
             std::cerr << "invalid method table for " << error->ti->name()
                       << "\n";
         }
-        return;
+        abort();
     }
 
     if (auto error = std::get_if<hash_search_error>(&error_v)) {
@@ -1126,7 +1126,7 @@ void default_error_handler(const error_type& error_v) {
                       << " in " << error->duration.count() << "s using "
                       << error->buckets << " buckets\n";
         }
-        return;
+        abort();
     }
 }
 
