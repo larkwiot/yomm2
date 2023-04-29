@@ -106,13 +106,13 @@ struct hash_factors_in_method {
 };
 
 struct direct_intrusive_dispatch {
-    using policy_type = policy::default_policy;
+    using policy_type = default_policy;
     template<typename Inheritance> using base_type = direct_intrusive_base<Inheritance>;
     static std::string name() { return "direct_intrusive"; };
 };
 
 struct indirect_intrusive_dispatch {
-    using policy_type = policy::default_policy;
+    using policy_type = default_policy;
     template<typename Inheritance> using base_type = indirect_intrusive_base<Inheritance>;
     static std::string name() { return "indirect_intrusive"; };
 };

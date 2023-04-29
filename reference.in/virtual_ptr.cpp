@@ -15,7 +15,7 @@ headers: yorel/yomm2/core.hpp
 ---
 ```c++
 
-template<class Class, typename = unspecified>
+template<class Class, class Policy = yorel::yomm2::default_policy>
 class virtual_ptr;
 ```
 ---
@@ -26,10 +26,33 @@ require a hash table lookup, unlike calls made using the orthogonal mode.
 Instead, the lookup is done once, when the pointer is constructed, or not at
 all, when using `virtual_ptr::final`.
 
-In spite of the 'ptr' in their name, `virtual_ptr` should be viewed more like a
+In spite of the 'ptr' in its name, `virtual_ptr` should be viewed more like a
 *reference*, because it is not possible to create a null `virtual_ptr` [^1].
 
 
+
+## member functions
+
+|                               |                              |
+| ----------------------------- | ---------------------------- |
+| ([constructor](#constructor)) | constructs a new virtual_ptr |
+| ([destructor](#destructor))   | destructs the virtual_ptr    |
+| [final](#final)               | constructs a new virtual_ptr |
+
+
+### observers
+
+|                               |                 |
+| ----------------------------- | --------------- |
+| [operator*](#deref-operator)  | dereferences the stored pointer |
+| [operator->](#arrow-operator) | dereferences the stored pointer |
+
+
+## static member functions
+
+|                               |                              |
+| ----------------------------- | ---------------------------- |
+| [final](#final)               | returns a new virtual_ptr |
 
 #endif
 
@@ -197,6 +220,7 @@ BOOST_AUTO_TEST_CASE(reference_direct_intrusive_mi) {
 } // namespace direct_intrusive
 
 #ifdef YOMM2_MD
+
 [^1]: The only reason why `virtual_ptr` is not called `virtual_ref` is to save
     the name for the time when C++ will support a user-defined dot operator.
 

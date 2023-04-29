@@ -312,7 +312,7 @@ BOOST_AUTO_TEST_CASE(call_error_handling) {
 
 namespace update_error_handling {
 
-struct test_policy : policy::default_policy {
+struct test_policy : default_policy {
     static struct catalog catalog;
     static struct context context;
 };

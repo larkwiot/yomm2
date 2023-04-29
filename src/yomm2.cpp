@@ -1155,7 +1155,7 @@ void hash_factors_in_method::method_info_type::install_hash_factors(
 
 void update_methods() {
     detail::update_methods(
-        policy::default_policy::catalog, policy::default_policy::context);
+        default_policy::catalog, default_policy::context);
 }
 
 error_handler_type set_error_handler(error_handler_type handler) {

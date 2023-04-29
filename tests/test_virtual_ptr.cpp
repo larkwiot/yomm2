@@ -38,7 +38,7 @@ struct Object {
 struct Axe : Object {};
 
 template<typename Key, bool Indirect>
-struct test_policy_ : policy::default_policy {
+struct test_policy_ : default_policy {
     static struct catalog catalog;
     static struct context context;
     static constexpr bool indirect_method_pointer = Indirect;

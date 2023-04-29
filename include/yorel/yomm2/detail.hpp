@@ -9,10 +9,10 @@ namespace detail {
 
 using mptr_type = detail::word*;
 
-template<typename, typename = policy::default_policy>
+template<typename, typename = default_policy>
 mptr_type method_table;
 
-template<typename, typename = policy::default_policy>
+template<typename, typename = default_policy>
 mptr_type* indirect_method_table;
 
 struct yomm2_end_of_dump {};
@@ -240,7 +240,7 @@ struct split_policy_aux<true, Policy, Classes...> {
 
 template<typename... Classes>
 struct split_policy_aux<false, Classes...> {
-    using policy = policy::default_policy;
+    using policy = default_policy;
     using classes = types<Classes...>;
 };
 
@@ -598,8 +598,9 @@ inline auto get_tip(const T& arg) {
     }
 }
 
-inline auto
-check_method_pointer(const context& ctx, const word* mptr, ti_ptr key) {
+template<class Policy>
+inline auto check_method_pointer(const word* mptr, ti_ptr key) {
+    auto& ctx = Policy::context;
     if constexpr (debug) {
         auto p = reinterpret_cast<const char*>(mptr);
 
@@ -625,16 +626,13 @@ inline auto get_mptr(resolver_type<ArgType> arg) {
 
     if constexpr (has_indirect_mptr_v<ArgType>) {
         mptr = *arg.yomm2_mptr();
-        check_method_pointer(
-            policy::context, mptr, virtual_traits<ArgType>::key(arg));
+        check_method_pointer<policy>(mptr, virtual_traits<ArgType>::key(arg));
     } else if constexpr (has_direct_mptr_v<ArgType>) {
         mptr = arg.yomm2_mptr();
-        check_method_pointer(
-            policy::context, mptr, virtual_traits<ArgType>::key(arg));
+        check_method_pointer<policy>(mptr, virtual_traits<ArgType>::key(arg));
     } else if constexpr (is_virtual_ptr<ArgType>) {
         mptr = arg.method_table();
-        check_method_pointer(
-            policy::context, mptr, virtual_traits<ArgType>::key(arg));
+        check_method_pointer<policy>(mptr, virtual_traits<ArgType>::key(arg));
     } else {
         auto key = virtual_traits<ArgType>::key(arg);
 

@@ -11,7 +11,7 @@ struct indirect;
 
 template<
     class Class, class Indirection = direct,
-    class Policy = policy::default_policy>
+    class Policy = default_policy>
 struct root;
 
 template<class Class, class Policy>

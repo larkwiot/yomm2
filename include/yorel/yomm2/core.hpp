@@ -105,9 +105,10 @@ namespace policy {
 
 struct abstract_policy;
 struct hash_factors_in_globals;
-using default_policy = hash_factors_in_globals;
 
 } // namespace policy
+
+using default_policy = policy::hash_factors_in_globals;
 
 template<typename Class, typename... Rest>
 struct class_declaration;
@@ -115,7 +116,7 @@ struct class_declaration;
 struct direct;
 struct indirect;
 
-template<class Class, class Policy = policy::default_policy>
+template<class Class, class Policy = default_policy>
 class virtual_ptr;
 
 } // namespace yomm2
@@ -164,6 +165,12 @@ namespace policy {
 
 struct abstract_policy {
     static constexpr bool indirect_method_pointer = false;
+    #ifdef NDEBUG
+    static constexpr bool enable_runtime_checks = false;
+    #else
+    static constexpr bool enable_runtime_checks = true;
+    #endif
+    ;
 };
 
 struct yOMM2_API global_context : virtual abstract_policy {
@@ -198,7 +205,7 @@ struct hash_factors_in_method : global_catalog, global_context {
 } // namespace policy
 
 template<
-    typename Key, typename Signature, class Policy = policy::default_policy>
+    typename Key, typename Signature, class Policy = default_policy>
 struct method;
 
 template<typename Key, typename R, typename... A, class Policy>
@@ -531,7 +538,7 @@ struct class_declaration<types<Class, Bases...>, Policy> : detail::class_info {
 
 template<typename Class, typename... Bases>
 struct class_declaration<types<Class, Bases...>> : class_declaration<
-    types<Class, Bases...>, policy::default_policy
+    types<Class, Bases...>, default_policy
 > {};
 
 // clang-format on
