@@ -579,7 +579,7 @@ class virtual_ptr {
 
     // TODO: make it work across different policies
     template<class OtherClass>
-    explicit virtual_ptr(const virtual_ptr<OtherClass, Policy>& other)
+    virtual_ptr(const virtual_ptr<OtherClass, Policy>& other)
         : obj(other.obj), mptr(other.mptr) {
     }
 

@@ -72,7 +72,16 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_virtual_ptr, Policy, policy_types<key>) {
 
     BOOST_TEST((vptr_animal(cat).method_table() == method_table<Cat, Policy>));
 
-    vptr_animal virtual_cat_ptr(cat);
+    vptr_cat virtual_cat_ptr(cat);
+    vptr_animal virtual_animal_ptr = virtual_cat_ptr;
+
+    struct upcast {
+        static void fn(vptr_animal) {
+        }
+    };
+
+    upcast::fn(virtual_cat_ptr);
+
     static method<Animal, std::string(virtual_<Animal&>), Policy> YOMM2_GENSYM;
     detail::update_methods(Policy::catalog, Policy::context);
     BOOST_TEST(
@@ -152,7 +161,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(
         YOMM2_GENSYM;
 
     using kick =
-        method<void, std::string(virtual_ptr<Character, Policy>)/*, Policy*/>;
+        method<void, std::string(virtual_ptr<Character, Policy>) /*, Policy*/>;
 
     struct kick_definition {
         static std::string fn(virtual_ptr<Bear, Policy>) {
@@ -165,7 +174,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(
         void,
         std::string(
             virtual_ptr<Character, Policy>, virtual_ptr<Object, Policy>,
-            virtual_ptr<Character, Policy>), Policy>;
+            virtual_ptr<Character, Policy>),
+        Policy>;
 
     struct fight_definition {
         static std::string

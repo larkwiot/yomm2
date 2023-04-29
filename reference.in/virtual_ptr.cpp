@@ -9,42 +9,27 @@
 #ifdef YOMM2_MD
 <sub>/ ->home / ->reference </sub>
 
-entry: yorel::yomm2::root
-entry: yorel::yomm2::derived
-entry: yorel::yomm2::direct
-entry: yorel::yomm2::indirect
+entry: yorel::yomm2::virtual_ptr
 headers: yorel/yomm2/core.hpp
 
 ---
 ```c++
-struct direct;
 
-struct indirect;
-
-template<class Class, class Indirection = direct, typename = /*unspecified*/>
-struct root {
-    unspecified_type unspecified_name;
-    root();
-    unspecified_type yomm2_mptr() const;
-    void yomm2_mptr(unspecified_type mptr);
-};
-
-template<class Class, class... Bases>
-struct derived {
-    derived();
-};
+template<class Class, typename = unspecified>
+class virtual_ptr;
 ```
 ---
-YOMM2 uses per-class _method tables_ to dispatch calls efficiently. This is
-similar to the way virtual functions are implemented. In orthogonal mode, the
-method table for an object is obtained from a hash table. The hash function is
-collision-free, and very efficient. The overhead is ~25% compared to virtual
-functions.
+`virtual_ptr` is a fat pointer that consists of a pointer to an object, and a
+pointer to the method table for the object. Calls to methods through a
+`virtual_ptr` are as efficient as virtual function calls, because they do not
+require a hash table lookup, unlike calls made using the orthogonal mode.
+Instead, the lookup is done once, when the pointer is constructed, or not at
+all, when using `virtual_ptr::final`.
 
-Hash table lookup can be eliminated for YOMM2-aware class hierarchies. This
-is done by publicly inheriting from
-[CRTP](https://en.wikipedia.org/wiki/Curiously_recurring_template_pattern) class
-templates `yomm2::root` and `yomm2::derived`:
+In spite of the 'ptr' in their name, `virtual_ptr` should be viewed more like a
+*reference*, because it is not possible to create a null `virtual_ptr` [^1].
+
+
 
 #endif
 
@@ -65,17 +50,19 @@ class Dog : public Animal {
 
 declare_method(void, kick, (virtual_ptr<Animal>));
 
-declare_method(void, meet, (virtual_ptr<Animal>, virtual_ptr<Animal>));
-
-#endif
+declare_method(
+    void, meet, (virtual_ptr<Animal>, virtual_ptr<Animal>));
 
 define_method(void, kick, (virtual_ptr<Dog> dog)) {
-    // bark
+    std::cout << "bark";
 }
 
-define_method(void, meet, (virtual_ptr<Dog> a, virtual_ptr<Dog> b)) {
-    // wag tail
+define_method(
+    void, meet, (virtual_ptr<Dog> a, virtual_ptr<Dog> b)) {
+    std::cout << "wag tail";
 }
+
+#endif
 
 void call_kick(virtual_ptr<Animal> animal) {
     kick(animal);
@@ -113,23 +100,21 @@ BOOST_AUTO_TEST_CASE(reference_direct_intrusive) {
 A call to `kick` compiles to just three instructions:
 
 ```
-	mov	rax, qword ptr [rdi + 8]
-	mov	rcx, qword ptr [rip + method<kick>::fn+96]
-	jmp	qword ptr [rax + 8*rcx]         # TAILCALL
+	mov	rax, qword ptr [rip + method<kick, ...>::fn+96]
+	mov	rax, qword ptr [rsi + 8*rax]
+	jmp	rax
 ```
 
 A call to `meet` compiles to:
 
 ```
-	mov	rax, qword ptr [rdi + 8]
-	mov	rcx, qword ptr [rip + method<meet>::fn+96]
-	mov	rax, qword ptr [rax + 8*rcx]
-	mov	rcx, qword ptr [rsi + 8]
-	mov	rdx, qword ptr [rip + method<meet>::fn+104]
-	mov	ecx, dword ptr [rcx + 8*rdx]
-	imul	rcx, qword ptr [rip + method<meet>::fn+112]
-	mov	rax, qword ptr [rax + 8*rcx]
-	jmp	rax                             # TAILCALL
+	mov	rax, qword ptr [rip + method<meet, ...>::fn+96]
+	mov	r8, qword ptr [rsi + 8*rax]
+	mov	rax, qword ptr [rip + method<meet, ...>::fn+104]
+	mov	rax, qword ptr [rcx + 8*rax]
+	imul	rax, qword ptr [rip + method<meet, ...>::fn+112]
+	mov	rax, qword ptr [r8 + 8*rax]
+	jmp	rax
 
 
 ```
@@ -153,11 +138,6 @@ In indirect mode, objects contains a pointer to a pointer to the method
 table. Because of the indirection, this makes method calls slightly slower, but
 `update_methods` can be safely called at any time.
 
-Intrusive mode works with multiple inheritance, but not with repeated
-inheritance, just like the orthogonal mode [^1]. If a class inherits from more
-than one YOMM2-aware classes, it must specify these classes as additional
-arguments to `derived`. It also needs to include a `using` directive to
-disambiguate the `yomm2_ptr` accessors.
 
 For example:
 
@@ -217,10 +197,8 @@ BOOST_AUTO_TEST_CASE(reference_direct_intrusive_mi) {
 } // namespace direct_intrusive
 
 #ifdef YOMM2_MD
-[^1]: Repeated inheritance _could_ be made to work with intrusive mode. This is
-    not supported for two reasons: it would create inconsistencies in the way
-    methods are dispatched; and it would require classes to do complicated,
-    error-prone work.
+[^1]: The only reason why `virtual_ptr` is not called `virtual_ref` is to save
+    the name for the time when C++ will support a user-defined dot operator.
 
 #endif
 
