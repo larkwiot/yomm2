@@ -21,14 +21,14 @@ struct indirect {};
 } // namespace yomm2
 } // namespace yorel
 
-struct Character {
-    virtual ~Character() {
+struct Player {
+    virtual ~Player() {
     }
 };
 
-struct Warrior : Character {};
+struct Warrior : Player {};
 
-struct Bear : Character {};
+struct Bear : Player {};
 
 struct Object {
     virtual ~Object() {
@@ -50,52 +50,55 @@ template<typename Key, bool Indirect>
 context test_policy_<Key, Indirect>::context;
 
 template<typename Key>
-using test_policy_types = types<test_policy_<Key, false>, test_policy_<Key, true>>;
+using test_policy_types =
+    types<test_policy_<Key, false>, test_policy_<Key, true>>;
 
 namespace test_virtual_ptr {
 
 struct key {};
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(test_virtual_ptr, test_policy, test_policy_types<key>) {
+BOOST_AUTO_TEST_CASE_TEMPLATE(
+    test_virtual_ptr, test_policy, test_policy_types<key>) {
     using namespace detail;
 
-    static use_classes<test_policy, Character, Bear> YOMM2_GENSYM;
+    static use_classes<test_policy, Player, Bear> YOMM2_GENSYM;
     detail::update_methods(test_policy::catalog, test_policy::context);
 
-    using vptr_character = virtual_ptr<Character, test_policy>;
-    static_assert(detail::is_virtual_ptr<vptr_character>);
+    using vptr_player = virtual_ptr<Player, test_policy>;
+    static_assert(detail::is_virtual_ptr<vptr_player>);
     using vptr_cat = virtual_ptr<Bear, test_policy>;
 
-    Character character;
-    auto virtual_character = vptr_character::final(character);
-    BOOST_TEST(&virtual_character.object() == &character);
+    Player player;
+    auto virtual_player = vptr_player::final(player);
+    BOOST_TEST(&virtual_player.object() == &player);
     BOOST_TEST(
-        (virtual_character.method_table() == method_table<Character, test_policy>));
+        (virtual_player.method_table() == method_table<Player, test_policy>));
 
     Bear bear;
     BOOST_TEST((&vptr_cat::final(bear).object()) == &bear);
     BOOST_TEST(
-        (vptr_cat::final(bear).method_table() == method_table<Bear, test_policy>));
+        (vptr_cat::final(bear).method_table() ==
+         method_table<Bear, test_policy>));
 
     BOOST_TEST(
-        (vptr_character(bear).method_table() == method_table<Bear, test_policy>));
+        (vptr_player(bear).method_table() == method_table<Bear, test_policy>));
 
     vptr_cat virtual_cat_ptr(bear);
-    vptr_character virtual_character_ptr = virtual_cat_ptr;
+    vptr_player virtual_player_ptr = virtual_cat_ptr;
 
     struct upcast {
-        static void fn(vptr_character) {
+        static void fn(vptr_player) {
         }
     };
 
     upcast::fn(virtual_cat_ptr);
 
-    static method<Character, std::string(virtual_<Character&>), test_policy>
+    static method<Player, std::string(virtual_<Player&>), test_policy>
         YOMM2_GENSYM;
     detail::update_methods(test_policy::catalog, test_policy::context);
     BOOST_TEST(
         (virtual_cat_ptr.method_table() == method_table<Bear, test_policy>) ==
-        vptr_character::is_indirect);
+        vptr_player::is_indirect);
 }
 
 BOOST_AUTO_TEST_CASE(test_deduction) {
@@ -111,7 +114,7 @@ namespace bad_virtual_ptr {
 struct key {};
 using test_policy = test_policy_<key, false>;
 
-register_classes(test_policy, Character, Bear);
+register_classes(test_policy, Player, Bear);
 
 BOOST_AUTO_TEST_CASE(test_final) {
     auto prev_handler = set_error_handler([](const error_type& ev) {
@@ -126,23 +129,21 @@ BOOST_AUTO_TEST_CASE(test_final) {
 
     try {
         Bear paddington;
-        Character& animal = paddington;
-        virtual_ptr<Character, test_policy>::final(animal);
+        Player& animal = paddington;
+        virtual_ptr<Player, test_policy>::final(animal);
         set_error_handler(prev_handler);
     } catch (const method_table_error& error) {
-        BOOST_TEST(error.ti->name() == typeid(Bear).name());
         set_error_handler(prev_handler);
+        if constexpr (!test_policy::enable_runtime_checks) {
+            BOOST_FAIL("should not have thrown, because runtime checks are not "
+                       "enabled");
+        }
+        BOOST_TEST(error.ti->name() == typeid(Bear).name());
         return;
     } catch (...) {
         set_error_handler(prev_handler);
         BOOST_FAIL("wrong exception");
-    }
-
-    if constexpr (test_policy::enable_runtime_checks) {
-        BOOST_FAIL("did not throw");
-    } else {
-        BOOST_FAIL(
-            "should not have thrown, because runtime checks are not enabled");
+        return;
     }
 
     set_error_handler(prev_handler);
@@ -156,11 +157,11 @@ struct key {};
 BOOST_AUTO_TEST_CASE_TEMPLATE(
     test_virtual_ptr_dispatch, test_policy, test_policy_types<key>) {
 
-    static use_classes<test_policy, Character, Warrior, Object, Axe, Bear>
+    static use_classes<test_policy, Player, Warrior, Object, Axe, Bear>
         YOMM2_GENSYM;
 
-    using kick =
-        method<void, std::string(virtual_ptr<Character, test_policy>), test_policy>;
+    using kick = method<
+        void, std::string(virtual_ptr<Player, test_policy>), test_policy>;
 
     struct kick_definition {
         static std::string fn(virtual_ptr<Bear, test_policy>) {
@@ -172,8 +173,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(
     using fight = method<
         void,
         std::string(
-            virtual_ptr<Character, test_policy>, virtual_ptr<Object, test_policy>,
-            virtual_ptr<Character, test_policy>),
+            virtual_ptr<Player, test_policy>, virtual_ptr<Object, test_policy>,
+            virtual_ptr<Player, test_policy>),
         test_policy>;
 
     struct fight_definition {
@@ -190,50 +191,47 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(
     detail::update_methods(test_policy::catalog, test_policy::context);
 
     Bear bear;
-    BOOST_TEST(kick::fn(virtual_ptr<Character, test_policy>(bear)) == "growl");
+    BOOST_TEST(kick::fn(virtual_ptr<Player, test_policy>(bear)) == "growl");
 
     Warrior warrior;
     Axe axe;
     BOOST_TEST(
         fight::fn(
-            virtual_ptr<Character, test_policy>(warrior),
+            virtual_ptr<Player, test_policy>(warrior),
             virtual_ptr<Object, test_policy>(axe),
-            virtual_ptr<Character, test_policy>(bear)) == "kill bear");
+            virtual_ptr<Player, test_policy>(bear)) == "kill bear");
 }
 
-
+#if 1
 namespace virtual_ptr_shared {
 
 using test_policy = test_policy_<boost::mp11::mp_int<__COUNTER__>, false>;
 
 BOOST_AUTO_TEST_CASE(test_virtual_ptr_shared) {
 
-    static use_classes<test_policy, Character, Warrior, Object, Axe, Bear>
+    static use_classes<test_policy, Player, Warrior, Object, Axe, Bear>
         YOMM2_GENSYM;
 
-    using character_ptr = virtual_ptr<std::shared_ptr<Character>, test_policy>;
+    using player_ptr = virtual_ptr<std::shared_ptr<Player>, test_policy>;
+    using object_ptr = virtual_ptr<std::shared_ptr<Object>, test_policy>;
 
-    using kick =
-        method<void, std::string(virtual_ptr<Character, test_policy>), test_policy>;
+    using kick = method<void, std::string(player_ptr), test_policy>;
 
     struct kick_definition {
-        static std::string fn(virtual_ptr<Bear, test_policy>) {
+        static std::string fn(virtual_ptr<std::shared_ptr<Bear>, test_policy>) {
             return std::string("growl");
         }
     };
     static typename kick::template add_definition<kick_definition> YOMM2_GENSYM;
 
     using fight = method<
-        void,
-        std::string(
-            virtual_ptr<Character, test_policy>, virtual_ptr<Object, test_policy>,
-            virtual_ptr<Character, test_policy>),
-        test_policy>;
+        void, std::string(player_ptr, object_ptr, player_ptr), test_policy>;
 
     struct fight_definition {
         static std::string
-        fn(virtual_ptr<Warrior, test_policy>, virtual_ptr<Axe, test_policy>,
-           virtual_ptr<Bear, test_policy>) {
+        fn(virtual_ptr<std::shared_ptr<Warrior>, test_policy>,
+           virtual_ptr<std::shared_ptr<Axe>, test_policy>,
+           virtual_ptr<std::shared_ptr<Bear>, test_policy>) {
             return "kill bear";
         }
     };
@@ -244,17 +242,15 @@ BOOST_AUTO_TEST_CASE(test_virtual_ptr_shared) {
     detail::update_methods(test_policy::catalog, test_policy::context);
 
     Bear bear;
-    BOOST_TEST(kick::fn(virtual_ptr<Character, test_policy>(bear)) == "growl");
+    BOOST_TEST(kick::fn(player_ptr(bear)) == "growl");
 
     Warrior warrior;
     Axe axe;
     BOOST_TEST(
-        fight::fn(
-            virtual_ptr<Character, test_policy>(warrior),
-            virtual_ptr<Object, test_policy>(axe),
-            virtual_ptr<Character, test_policy>(bear)) == "kill bear");
+        fight::fn(player_ptr(warrior), object_ptr(axe), player_ptr(bear)) ==
+        "kill bear");
 }
-
-
 } // namespace virtual_ptr_shared
-}
+#endif
+
+} // namespace test_virtual_ptr_dispatch

@@ -246,8 +246,7 @@ struct split_policy_aux<false, Classes...> {
 
 template<typename ClassOrPolicy, typename... Classes>
 struct split_policy
-    : split_policy_aux<is_policy<ClassOrPolicy>, ClassOrPolicy, Classes...> {
-};
+    : split_policy_aux<is_policy<ClassOrPolicy>, ClassOrPolicy, Classes...> {};
 
 template<typename... Classes>
 using get_policy = typename split_policy<Classes...>::policy;
@@ -374,6 +373,40 @@ struct virtual_traits<virtual_ptr<Class, Policy>> {
     template<typename Derived>
     static Derived cast(virtual_ptr<Class, Policy> ptr) {
         return ptr.template cast<Derived>();
+    }
+
+    using content_type = Class&;
+
+    static Class* store(Class& obj) {
+        return &obj;
+    }
+};
+
+template<class Class, class Policy>
+struct virtual_traits<virtual_ptr<std::shared_ptr<Class>, Policy>> {
+    using this_type = virtual_ptr<std::shared_ptr<Class>, Policy>;
+    using polymorphic_type = Class;
+    using content_type = std::shared_ptr<Class>;
+    using content_traits = virtual_traits<content_type>;
+    static_assert(std::is_polymorphic_v<polymorphic_type>);
+
+    static auto rarg(this_type ptr) {
+        return ptr;
+    }
+
+    static auto key(this_type arg) {
+        return virtual_traits<std::shared_ptr<Class>>::key(arg);
+    }
+
+    template<typename Derived>
+    static Derived cast(this_type ptr) {
+        return Derived(
+            content_traits::template cast<typename Derived::object_type>(
+                ptr.unbox()));
+    }
+
+    static const content_type& store(const content_type& ptr) {
+        return ptr;
     }
 };
 

@@ -565,7 +565,7 @@ class virtual_ptr {
     template<
         class OtherClass,
         typename = std::enable_if_t<!detail::is_virtual_ptr<OtherClass>, void>>
-    virtual_ptr(OtherClass& obj) : obj(&obj) {
+    virtual_ptr(OtherClass& obj) : obj(obj) {
         if constexpr (is_indirect) {
             if (typeid(obj) == typeid(OtherClass)) {
                 mptr = detail::indirect_method_table<OtherClass, Policy>;
@@ -601,9 +601,9 @@ class virtual_ptr {
 
         if constexpr (is_indirect) {
             return virtual_ptr(
-                &obj, detail::indirect_method_table<Class, Policy>);
+                obj, detail::indirect_method_table<Class, Policy>);
         } else {
-            return virtual_ptr(&obj, detail::method_table<Class, Policy>);
+            return virtual_ptr(obj, detail::method_table<Class, Policy>);
         }
     }
 
@@ -614,7 +614,7 @@ class virtual_ptr {
             std::enable_if_t<detail::is_virtual_ptr<OtherVirtualPtr>, void>>
     OtherVirtualPtr cast() const {
         return OtherVirtualPtr(
-            &detail::optimal_cast<typename OtherVirtualPtr::object_type&>(*obj),
+            detail::optimal_cast<typename OtherVirtualPtr::object_type&>(obj),
             mptr);
     }
 
@@ -623,11 +623,15 @@ class virtual_ptr {
     }
 
     auto& object() const {
-        return *obj;
+        return obj;
     }
 
     auto& operator*() const {
-        return *obj;
+        return obj;
+    }
+
+    auto unbox() const {
+        return obj;
     }
 
     // for tests only
@@ -643,10 +647,12 @@ class virtual_ptr {
     using mptr_type =
         std::conditional_t<is_indirect, detail::mptr_type*, detail::mptr_type>;
 
-    virtual_ptr(Class* obj, mptr_type mptr) : obj(obj), mptr(mptr) {
+    using traits = detail::virtual_traits<virtual_ptr<Class>>;
+
+    virtual_ptr(Class& obj, mptr_type mptr) : obj(obj), mptr(mptr) {
     }
 
-    Class* obj;
+    typename traits::content_type obj;
     mptr_type mptr;
 };
 
