@@ -165,11 +165,11 @@ namespace policy {
 
 struct abstract_policy {
     static constexpr bool use_indirect_method_pointers = false;
-    #ifdef NDEBUG
+#ifdef NDEBUG
     static constexpr bool enable_runtime_checks = false;
-    #else
+#else
     static constexpr bool enable_runtime_checks = true;
-    #endif
+#endif
     ;
 };
 
@@ -204,8 +204,7 @@ struct hash_factors_in_method : global_catalog, global_context {
 
 } // namespace policy
 
-template<
-    typename Key, typename Signature, class Policy = default_policy>
+template<typename Key, typename Signature, class Policy = default_policy>
 struct method;
 
 template<typename Key, typename R, typename... A, class Policy>
@@ -377,7 +376,7 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
 
     return_type operator()(detail::remove_virtual<A>... args) const {
         using namespace detail;
-        return resolve<A...>(argument_traits<A>::ref(args)...)(
+        return resolve<A...>(argument_traits<A>::rarg(args)...)(
             std::forward<remove_virtual<A>>(args)...);
     }
 
@@ -650,6 +649,10 @@ class virtual_ptr {
     Class* obj;
     mptr_type mptr;
 };
+
+// deduction guides
+template<class Class>
+virtual_ptr(Class) -> virtual_ptr<Class>;
 
 // =============================================================================
 // update_methods

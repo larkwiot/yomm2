@@ -227,7 +227,7 @@ inline definition_info::~definition_info() {
 }
 
 template<typename T>
-constexpr bool is_policy_v = std::is_base_of_v<policy::abstract_policy, T>;
+constexpr bool is_policy = std::is_base_of_v<policy::abstract_policy, T>;
 
 template<bool, typename... Classes>
 struct split_policy_aux;
@@ -246,7 +246,7 @@ struct split_policy_aux<false, Classes...> {
 
 template<typename ClassOrPolicy, typename... Classes>
 struct split_policy
-    : split_policy_aux<is_policy_v<ClassOrPolicy>, ClassOrPolicy, Classes...> {
+    : split_policy_aux<is_policy<ClassOrPolicy>, ClassOrPolicy, Classes...> {
 };
 
 template<typename... Classes>
@@ -306,7 +306,7 @@ struct virtual_traits<T&> {
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static const T& ref(const T& arg) {
+    static const T& rarg(const T& arg) {
         return arg;
     }
 
@@ -325,7 +325,7 @@ struct virtual_traits<T&&> {
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static const T& ref(const T& arg) {
+    static const T& rarg(const T& arg) {
         return arg;
     }
 
@@ -344,7 +344,7 @@ struct virtual_traits<T*> {
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static auto ref(const T* arg) {
+    static auto rarg(const T* arg) {
         return arg;
     }
 
@@ -363,7 +363,7 @@ struct virtual_traits<virtual_ptr<Class, Policy>> {
     using polymorphic_type = Class;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static auto ref(virtual_ptr<Class, Policy> ptr) {
+    static auto rarg(virtual_ptr<Class, Policy> ptr) {
         return ptr;
     }
 
@@ -399,7 +399,7 @@ struct resolver_type_impl<T&&> {
 
 template<typename T>
 struct resolver_type_impl<virtual_<T>> {
-    using type = decltype(virtual_traits<T>::ref(std::declval<T>()));
+    using type = decltype(virtual_traits<T>::rarg(std::declval<T>()));
 };
 
 template<class Class, class Policy>
@@ -412,7 +412,7 @@ using resolver_type = typename resolver_type_impl<T>::type;
 
 template<typename T>
 struct argument_traits {
-    static const T& ref(const T& arg) {
+    static const T& rarg(const T& arg) {
         return arg;
     }
 
@@ -473,7 +473,7 @@ struct virtual_traits<std::shared_ptr<T>> {
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static const std::shared_ptr<T>& ref(const std::shared_ptr<T>& arg) {
+    static const std::shared_ptr<T>& rarg(const std::shared_ptr<T>& arg) {
         return arg;
     }
 
@@ -510,7 +510,7 @@ struct virtual_traits<const std::shared_ptr<T>&> {
     using polymorphic_type = std::remove_cv_t<T>;
     static_assert(std::is_polymorphic_v<polymorphic_type>);
 
-    static const std::shared_ptr<T>& ref(const std::shared_ptr<T>& arg) {
+    static const std::shared_ptr<T>& rarg(const std::shared_ptr<T>& arg) {
         return arg;
     }
 

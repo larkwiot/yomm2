@@ -20,15 +20,7 @@ class virtual_ptr;
 ```
 ---
 `virtual_ptr` is a fat pointer that consists of a pointer to an object, and a
-pointer to its associated method table. Calls to methods through a
-`virtual_ptr` are as efficient as virtual function calls, because they do not
-require a hash table lookup, unlike calls made using the orthogonal mode.
-Instead, the lookup is done once, when the pointer is constructed, or not at
-all, when using `virtual_ptr::final`.
-
-In spite of the 'ptr' in its name, `virtual_ptr` should be viewed more like a
-*reference*, because it is not possible to create a null `virtual_ptr` [^1].
-
+pointer to its associated method table.
 
 ## member functions
 
@@ -36,7 +28,6 @@ In spite of the 'ptr' in its name, `virtual_ptr` should be viewed more like a
 | ----------------------------- | ---------------------------- |
 | ([constructor](#constructor)) | constructs a new virtual_ptr |
 | ([destructor](#destructor))   | destructs the virtual_ptr    |
-| [final](#final)               | constructs a new virtual_ptr |
 
 
 ### observers
@@ -81,16 +72,40 @@ to the method table corresponding to `obj`'s *dynamic* type. If the dynamic type
 of `obj` is the same as `OtherClass` (i.e. `typeid(obj) == typeid(OtherClass)`),
 the hash table is not looked up.
 
-The `Policy` must be the same for both `virtual_ptr`s. This is because
-constructing a `virtual_ptr` with a different `Policy` will incur the cost of a
-hash table lookup. This can be achieved by creating a new `virtual_ptr` from the
-referenced object:
+`Policy` must be the same for both `virtual_ptr`s. This is because constructing
+a `virtual_ptr` with a different `Policy` incurs the cost of a hash table
+lookup. When needed, it can be done explicitly:
 
 ```
-virtual_ptr<Animal, some_policy> ptr1(animal);
+virtual_ptr<Animal, my_policy> my_ptr(animal);
 // ...
-virtual_ptr<Animal, another_policy> ptr2(*ptr1);
+virtual_ptr<Animal, your_policy> your_ptr(*my_ptr);
 ```
+
+### static virtual_ptr&lt;Class, Policy&gt;>final&lt;OtherClass&gt;
+
+Returns a `virtual_ptr` that contains a reference to `obj`, and a pointer
+to the method table for `OtherClass`.
+
+If `Policy::enable_runtime_checks` is `true` (the default in debug builds), and
+the dynamic type of `obj` is differs from `OtherClass`, the current error
+handler is called with a `method_table_error` variant.
+
+## Notes
+
+Calls to methods through a `virtual_ptr` are almost as efficient as virtual
+function calls: three instructions and two memory reads, vs two instructions and
+one memory read for virtual functions. This is because they do not incur the
+cost a hash table lookup, unlike calls made using the orthogonal mode. Instead,
+the lookup is done once, when the pointer is constructed, or not at all, when
+using `virtual_ptr::final`.
+
+In spite of the 'ptr' in its name, `virtual_ptr` should be viewed more like a
+*reference*, because it is not possible to create a null `virtual_ptr` [^1].
+
+## Direct vs Indirect
+
+## Examples
 
 #endif
 
