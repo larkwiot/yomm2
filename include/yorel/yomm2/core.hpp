@@ -134,34 +134,12 @@ using method_call_error_handler = void (*)(
 
 // end deprecated
 
-template<typename T>
-struct virtual_;
-
-struct catalog;
-
 struct context {
     std::vector<detail::word> gv;
     std::vector<detail::word*> mptrs;
     std::vector<detail::word**> indirect_mptrs;
     detail::hash_function hash;
 };
-
-template<typename Class, typename... Rest>
-struct class_declaration;
-
-template<
-    class Class, class Policy = default_policy,
-    bool IsSmartPtr = detail::virtual_ptr_traits<Class, Policy>::is_smart_ptr>
-class virtual_ptr;
-
-} // namespace yomm2
-} // namespace yorel
-
-namespace yorel {
-namespace yomm2 {
-
-template<typename T>
-struct virtual_;
 
 struct catalog {
     catalog& add(detail::class_info& cls) {
@@ -172,52 +150,6 @@ struct catalog {
     detail::static_chain<detail::class_info> classes;
     detail::static_chain<detail::method_info> methods;
 };
-
-namespace policy {
-
-struct abstract_policy {
-    static constexpr bool use_indirect_method_pointers = false;
-#ifdef NDEBUG
-    static constexpr bool enable_runtime_checks = false;
-#else
-    static constexpr bool enable_runtime_checks = true;
-#endif
-    ;
-};
-
-template<class Policy>
-struct with_scope : virtual abstract_policy {
-    static struct context context;
-    static struct catalog catalog;
-};
-
-template<class Policy>
-catalog with_scope<Policy>::catalog;
-template<class Policy>
-context with_scope<Policy>::context;
-
-template<class Policy>
-struct with_method_tables {
-    template<typename>
-    static detail::mptr_type method_table;
-
-    template<typename>
-    static detail::mptr_type* indirect_method_table;
-};
-
-template<typename>
-static detail::mptr_type method_table;
-
-template<typename>
-static detail::mptr_type* indirect_method_table;
-
-struct yOMM2_API basic_policy : virtual abstract_policy {
-    using method_info_type = detail::method_info;
-    static struct context context;
-    static struct catalog catalog;
-};
-
-} // namespace policy
 
 template<typename Key, typename Signature, class Policy = default_policy>
 struct method;
@@ -251,25 +183,12 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
     static method fn;
     static function_pointer_type fake_definition;
 
-    explicit method(std::string_view name = typeid(method).name()) {
-        this->name = name;
-        this->slots_strides_p = slots_strides;
-        using virtual_type_ids = detail::type_id_list<boost::mp11::mp_transform<
-            detail::polymorphic_type, virtual_argument_types>>;
-        this->vp_begin = virtual_type_ids::begin;
-        this->vp_end = virtual_type_ids::end;
-        this->not_implemented = (void*)not_implemented_handler;
-        this->ambiguous = (void*)ambiguous_handler;
-        this->hash_factors_placement = &typeid(Policy);
-        Policy::catalog.methods.push_front(*this);
-    }
+    explicit method(std::string_view name = typeid(method).name());
 
     method(const method&) = delete;
     method(method&&) = delete;
 
-    ~method() {
-        Policy::catalog.methods.remove(*this);
-    }
+    ~method();
 
     template<typename ArgType, typename... MoreArgTypes>
     void* resolve_uni(
@@ -287,31 +206,9 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
         detail::resolver_type<MoreArgTypes>... more_args) const;
 
     template<typename... ArgType>
-    auto resolve(detail::resolver_type<ArgType>... args) const {
-        using namespace detail;
+    function_pointer_type resolve(detail::resolver_type<ArgType>... args) const;
 
-        if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-            call_trace << "call " << this->name << "\n";
-        }
-
-        void* pf;
-
-        if constexpr (arity == 1) {
-            pf = resolve_uni<ArgType...>(args...);
-        } else {
-            pf = resolve_multi_first<0, ArgType...>(args...);
-        }
-
-        call_trace << " pf = " << pf << "\n";
-
-        return reinterpret_cast<function_pointer_type>(pf);
-    }
-
-    return_type operator()(detail::remove_virtual<A>... args) const {
-        using namespace detail;
-        return resolve<A...>(argument_traits<A>::rarg(args)...)(
-            std::forward<remove_virtual<A>>(args)...);
-    }
+    return_type operator()(detail::remove_virtual<A>... args) const;
 
     static return_type
     not_implemented_handler(detail::remove_virtual<A>... args);
@@ -455,8 +352,59 @@ struct class_declaration<detail::types<Class, Bases...>> : class_declaration<
 template<typename... T>
 using use_classes = typename detail::use_classes_aux<T...>::type;
 
+namespace policy {
+
+struct abstract_policy {
+    static constexpr bool use_indirect_method_pointers = false;
+#ifdef NDEBUG
+    static constexpr bool enable_runtime_checks = false;
+#else
+    static constexpr bool enable_runtime_checks = true;
+#endif
+    ;
+};
+
+template<class Policy>
+struct with_scope : virtual abstract_policy {
+    static struct context context;
+    static struct catalog catalog;
+};
+
+template<class Policy>
+catalog with_scope<Policy>::catalog;
+template<class Policy>
+context with_scope<Policy>::context;
+
+template<class Policy>
+struct with_method_tables {
+    template<typename>
+    static detail::mptr_type method_table;
+
+    template<typename>
+    static detail::mptr_type* indirect_method_table;
+};
+
+template<typename>
+static detail::mptr_type method_table;
+
+template<typename>
+static detail::mptr_type* indirect_method_table;
+
+struct yOMM2_API basic_policy : virtual abstract_policy {
+    using method_info_type = detail::method_info;
+    static struct context context;
+    static struct catalog catalog;
+};
+
+} // namespace policy
+
 // =============================================================================
 // virtual_ptr
+
+template<
+    class Class, class Policy = default_policy,
+    bool IsSmartPtr = detail::virtual_ptr_traits<Class, Policy>::is_smart_ptr>
+class virtual_ptr;
 
 template<class Class, class Policy, typename Box>
 class virtual_ptr_aux {
@@ -653,6 +601,61 @@ set_method_call_error_handler(method_call_error_handler handler) {
     auto prev = detail::method_call_error_handler_p;
     detail::method_call_error_handler_p = handler;
     return prev;
+}
+
+// =============================================================================
+// definitions
+
+template<typename Key, typename R, typename... A, class Policy>
+method<Key, R(A...), Policy>::method(std::string_view name) {
+    this->name = name;
+    this->slots_strides_p = slots_strides;
+    using virtual_type_ids = detail::type_id_list<boost::mp11::mp_transform<
+        detail::polymorphic_type, virtual_argument_types>>;
+    this->vp_begin = virtual_type_ids::begin;
+    this->vp_end = virtual_type_ids::end;
+    this->not_implemented = (void*)not_implemented_handler;
+    this->ambiguous = (void*)ambiguous_handler;
+    this->hash_factors_placement = &typeid(Policy);
+    Policy::catalog.methods.push_front(*this);
+}
+
+template<typename Key, typename R, typename... A, class Policy>
+method<Key, R(A...), Policy>::~method() {
+    Policy::catalog.methods.remove(*this);
+}
+
+template<typename Key, typename R, typename... A, class Policy>
+typename method<Key, R(A...), Policy>::return_type
+inline method<Key, R(A...), Policy>::operator()(
+    detail::remove_virtual<A>... args) const {
+    using namespace detail;
+    return resolve<A...>(argument_traits<A>::rarg(args)...)(
+        std::forward<remove_virtual<A>>(args)...);
+}
+
+template<typename Key, typename R, typename... A, class Policy>
+template<typename... ArgType>
+inline typename method<Key, R(A...), Policy>::function_pointer_type
+method<Key, R(A...), Policy>::resolve(
+    detail::resolver_type<ArgType>... args) const {
+    using namespace detail;
+
+    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
+        call_trace << "call " << this->name << "\n";
+    }
+
+    void* pf;
+
+    if constexpr (arity == 1) {
+        pf = resolve_uni<ArgType...>(args...);
+    } else {
+        pf = resolve_multi_first<0, ArgType...>(args...);
+    }
+
+    call_trace << " pf = " << pf << "\n";
+
+    return reinterpret_cast<function_pointer_type>(pf);
 }
 
 template<typename Key, typename R, typename... A, class Policy>
