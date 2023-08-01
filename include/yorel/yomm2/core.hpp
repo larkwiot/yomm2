@@ -29,6 +29,53 @@
     #define yOMM2_API
 #endif
 
+// ====================
+// Forward declarations
+
+// To make 'detail' compile.
+
+namespace yorel {
+namespace yomm2 {
+
+template<typename T>
+struct virtual_;
+
+template<class Class, class Policy, bool IsSmartPtr>
+class virtual_ptr;
+
+template<typename Key, typename Signature, class Policy>
+struct method;
+
+template<typename Class, typename... Rest>
+struct class_declaration;
+
+struct resolution_error;
+struct unknown_class_error;
+struct hash_search_error;
+struct method_table_error;
+
+using error_type = std::variant<
+    resolution_error, unknown_class_error, hash_search_error,
+    method_table_error>;
+
+using error_handler_type = void (*)(const error_type& error);
+error_handler_type set_error_handler(error_handler_type handler);
+
+struct method_call_error;
+
+using method_call_error_handler = void (*)(
+    const method_call_error& error, size_t arity,
+    const std::type_info* const tis[]);
+
+inline method_call_error_handler yOMM2_API
+set_method_call_error_handler(method_call_error_handler handler);
+
+template<class Policy>
+yOMM2_API void update();
+
+} // namespace yomm2
+} // namespace yorel
+
 namespace yorel {
 namespace yomm2 {
 
@@ -183,6 +230,9 @@ inline void default_error_handler(const error_type& error_v) {
 }
 
 inline error_handler_type error_handler = detail::default_error_handler;
+} // namespace detail
+
+namespace detail {
 
 struct hash_function {
     std::uintptr_t mult;
