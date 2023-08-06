@@ -190,6 +190,9 @@ struct method<Key, R(A...), Policy> : Policy::method_info_type {
 
     ~method();
 
+    template<typename ArgType>
+    const detail::word* get_mptr(detail::resolver_type<ArgType> arg) const;
+
     template<typename ArgType, typename... MoreArgTypes>
     void* resolve_uni(
         detail::resolver_type<ArgType> arg,
@@ -626,9 +629,8 @@ method<Key, R(A...), Policy>::~method() {
 }
 
 template<typename Key, typename R, typename... A, class Policy>
-typename method<Key, R(A...), Policy>::return_type
-inline method<Key, R(A...), Policy>::operator()(
-    detail::remove_virtual<A>... args) const {
+typename method<Key, R(A...), Policy>::return_type inline method<
+    Key, R(A...), Policy>::operator()(detail::remove_virtual<A>... args) const {
     using namespace detail;
     return resolve<A...>(argument_traits<A>::rarg(args)...)(
         std::forward<remove_virtual<A>>(args)...);
@@ -659,6 +661,38 @@ method<Key, R(A...), Policy>::resolve(
 }
 
 template<typename Key, typename R, typename... A, class Policy>
+template<typename ArgType>
+inline const detail::word* method<Key, R(A...), Policy>::get_mptr(
+    detail::resolver_type<ArgType> arg) const {
+    using namespace detail;
+
+    const word* mptr;
+
+    if constexpr (has_mptr<resolver_type<ArgType>>) {
+        mptr = arg.yomm2_mptr();
+        check_method_pointer<Policy>(mptr, virtual_traits<ArgType>::key(arg));
+    } else if constexpr (is_virtual_ptr<ArgType>) {
+        mptr = arg.method_table();
+        // No need to check the method pointer: this was done when the
+        // virtual_ptr was created.
+    } else {
+        auto key = virtual_traits<ArgType>::key(arg);
+
+        if constexpr (bool(trace_enabled & TRACE_CALLS)) {
+            call_trace << "  key = " << key;
+        }
+
+        mptr = Policy::context.mptrs[Policy::context.hash(key)];
+    }
+
+    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
+        call_trace << " mptr = " << mptr;
+    }
+
+    return mptr;
+}
+
+template<typename Key, typename R, typename... A, class Policy>
 template<typename ArgType, typename... MoreArgTypes>
 inline void* method<Key, R(A...), Policy>::resolve_uni(
     detail::resolver_type<ArgType> arg,
@@ -667,7 +701,7 @@ inline void* method<Key, R(A...), Policy>::resolve_uni(
     using namespace detail;
 
     if constexpr (is_virtual<ArgType>::value) {
-        const word* mptr = get_mptr<method, ArgType>(arg);
+        const word* mptr = get_mptr<ArgType>(arg);
         call_trace << " slot = " << this->slots_strides[0];
         return mptr[this->slots_strides[0]].pf;
     } else {
@@ -688,7 +722,7 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_first(
         if constexpr (is_virtual_ptr<ArgType>) {
             mptr = arg.method_table();
         } else {
-            mptr = get_mptr<method, ArgType>(arg);
+            mptr = get_mptr<ArgType>(arg);
         }
 
         auto slot = slots_strides[0];
@@ -727,7 +761,7 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_next(
         if constexpr (is_virtual_ptr<ArgType>) {
             mptr = arg.method_table();
         } else {
-            mptr = get_mptr<method, ArgType>(arg);
+            mptr = get_mptr<ArgType>(arg);
         }
 
         auto slot = this->slots_strides[2 * VirtualArg - 1];
