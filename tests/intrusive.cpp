@@ -16,9 +16,9 @@
 
 using namespace yorel::yomm2;
 
-using direct_policy = test_policy<__COUNTER__>;
+using direct_policy = test_policy_<__COUNTER__>;
 
-struct indirect_policy : test_policy<__COUNTER__> {
+struct indirect_policy : policy::with_scope<indirect_policy> {
     static constexpr bool use_indirect_method_pointers = true;
 };
 
@@ -105,7 +105,7 @@ struct Animal : root<Animal> {
 
 struct Dog : Animal {};
 
-using policy = test_policy<__COUNTER__>;
+using policy = test_policy_<__COUNTER__>;
 
 register_classes(policy, Animal, Dog);
 

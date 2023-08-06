@@ -136,13 +136,14 @@ struct context {
     detail::hash_function hash;
 };
 
+template<class Policy>
 struct catalog {
-    catalog& add(detail::class_info& cls) {
+    catalog& add(detail::class_info<Policy>& cls) {
         classes.push_front(cls);
         return *this;
     }
 
-    detail::static_chain<detail::class_info> classes;
+    detail::static_chain<detail::class_info<Policy>> classes;
     detail::static_chain<detail::method_info> methods;
 };
 
@@ -150,7 +151,7 @@ template<typename Key, typename Signature, class Policy = default_policy>
 struct method;
 
 template<typename Key, typename R, typename... A, class Policy>
-struct method<Key, R(A...), Policy> : Policy::method_info_type {
+struct method<Key, R(A...), Policy> : detail::method_info {
     using self_type = method;
     using policy_type = Policy;
     using declared_argument_types = detail::types<A...>;
@@ -315,7 +316,7 @@ struct class_declaration : class_declaration<
 > {};
 
 template<typename Class, typename... Bases, typename Policy>
-struct class_declaration<detail::types<Class, Bases...>, Policy> : detail::class_info {
+struct class_declaration<detail::types<Class, Bases...>, Policy> : detail::class_info<Policy> {
     // Add a class to a catalog.
     // There is a possibility that the same class is registered with
     // different bases. This will be caught by augment_classes.
@@ -326,13 +327,13 @@ struct class_declaration<detail::types<Class, Bases...>, Policy> : detail::class
     class_declaration() {
         using namespace detail;
 
-        ti = &typeid(class_type);
-        first_base = type_id_list<bases_type>::begin;
-        last_base = type_id_list<bases_type>::end;
+        this->ti = &typeid(class_type);
+        this->first_base = type_id_list<bases_type>::begin;
+        this->last_base = type_id_list<bases_type>::end;
         Policy::catalog.classes.push_front(*this);
-        is_abstract = std::is_abstract_v<class_type>;
+        this->is_abstract = std::is_abstract_v<class_type>;
         indirect_method_table<class_type, Policy> = &method_table<class_type, Policy>;
-        intrusive_mptr = &method_table<class_type, Policy>;
+        this->intrusive_mptr = &method_table<class_type, Policy>;
     }
 
     ~class_declaration() {
@@ -365,11 +366,11 @@ struct abstract_policy {
 template<class Policy>
 struct with_scope : virtual abstract_policy {
     static struct context context;
-    static struct catalog catalog;
+    static struct catalog<Policy> catalog;
 };
 
 template<class Policy>
-catalog with_scope<Policy>::catalog;
+catalog<Policy> with_scope<Policy>::catalog;
 template<class Policy>
 context with_scope<Policy>::context;
 
@@ -389,9 +390,8 @@ template<typename>
 static detail::mptr_type* indirect_method_table;
 
 struct yOMM2_API basic_policy : virtual abstract_policy {
-    using method_info_type = detail::method_info;
     static struct context context;
-    static struct catalog catalog;
+    static struct catalog<basic_policy> catalog;
 };
 
 } // namespace policy
@@ -935,8 +935,7 @@ inline auto hash_function::operator()(ti_ptr tip) const {
         auto control_tip = control[index];
 
         if (control_tip != tip) {
-            error_handler(
-                unknown_class_error{unknown_class_error::call, tip});
+            error_handler(unknown_class_error{unknown_class_error::call, tip});
         }
     }
 

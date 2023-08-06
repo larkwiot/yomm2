@@ -1174,7 +1174,7 @@ void update() {
 #if !defined(YOMM2_SHARED)
 namespace policy {
 inline context basic_policy::context;
-inline catalog basic_policy::catalog;
+inline catalog<basic_policy> basic_policy::catalog;
 } // namespace policy
 #endif
 

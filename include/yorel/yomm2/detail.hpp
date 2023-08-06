@@ -243,7 +243,8 @@ inline std::size_t hash(std::uintptr_t mult, std::size_t shift, const void* p) {
 // ----------
 // class info
 
-struct class_info : static_chain<class_info>::static_link {
+template<class Policy>
+struct class_info : static_chain<class_info<Policy>>::static_link {
     detail::ti_ptr ti;
     word** intrusive_mptr;
     const detail::ti_ptr *first_base, *last_base;
