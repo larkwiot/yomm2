@@ -58,38 +58,6 @@ struct basic_policy;
 
 using default_policy = policy::basic_policy;
 
-struct resolution_error;
-struct unknown_class_error;
-struct hash_search_error;
-struct method_table_error;
-
-using error_type = std::variant<
-    resolution_error, unknown_class_error, hash_search_error,
-    method_table_error>;
-
-using error_handler_type = void (*)(const error_type& error);
-error_handler_type set_error_handler(error_handler_type handler);
-
-struct method_call_error;
-
-using method_call_error_handler = void (*)(
-    const method_call_error& error, size_t arity,
-    const std::type_info* const tis[]);
-
-inline method_call_error_handler yOMM2_API
-set_method_call_error_handler(method_call_error_handler handler);
-
-template<class Policy>
-yOMM2_API void update();
-
-} // namespace yomm2
-} // namespace yorel
-
-#include "detail.hpp"
-
-namespace yorel {
-namespace yomm2 {
-
 struct resolution_error {
     enum status_type { no_definition = 1, ambiguous } status;
     const std::type_info* method;
@@ -133,6 +101,33 @@ using method_call_error_handler = void (*)(
     const std::type_info* const tis[]);
 
 // end deprecated
+
+using error_type = std::variant<
+    resolution_error, unknown_class_error, hash_search_error,
+    method_table_error>;
+
+using error_handler_type = void (*)(const error_type& error);
+error_handler_type set_error_handler(error_handler_type handler);
+
+struct method_call_error;
+
+using method_call_error_handler = void (*)(
+    const method_call_error& error, size_t arity,
+    const std::type_info* const tis[]);
+
+inline method_call_error_handler yOMM2_API
+set_method_call_error_handler(method_call_error_handler handler);
+
+template<class Policy>
+yOMM2_API void update();
+
+} // namespace yomm2
+} // namespace yorel
+
+#include "detail.hpp"
+
+namespace yorel {
+namespace yomm2 {
 
 struct context {
     std::vector<detail::word> gv;
@@ -878,10 +873,80 @@ yOMM2_API inline void update() {
     update();
 }
 
+namespace detail {
+
+inline void default_method_call_error_handler(
+    const method_call_error& error, size_t arity, const ti_ptr ti_ptrs[]) {
+    if constexpr (bool(debug)) {
+        const char* explanation[] = {
+            "no applicable definition", "ambiguous call"};
+        std::cerr << explanation[error.code - resolution_error::no_definition]
+                  << " for " << error.method_name << "(";
+        auto comma = "";
+        for (auto ti : range{ti_ptrs, ti_ptrs + arity}) {
+            std::cerr << comma << ti->name();
+            comma = ", ";
+        }
+        std::cerr << ")\n" << std::flush;
+    }
+    abort();
+}
+
+inline void default_error_handler(const error_type& error_v) {
+    if (auto error = std::get_if<resolution_error>(&error_v)) {
+        method_call_error old_error;
+        old_error.code = error->status;
+        old_error.method_name = error->method->name();
+        method_call_error_handler_p(
+            std::move(old_error), error->arity, error->tis);
+        abort();
+    }
+
+    if (auto error = std::get_if<unknown_class_error>(&error_v)) {
+        if constexpr (bool(debug)) {
+            std::cerr << "unknown class " << error->ti->name() << "\n";
+        }
+        abort();
+    }
+
+    if (auto error = std::get_if<method_table_error>(&error_v)) {
+        if constexpr (bool(debug)) {
+            std::cerr << "invalid method table for " << error->ti->name()
+                      << "\n";
+        }
+        abort();
+    }
+
+    if (auto error = std::get_if<hash_search_error>(&error_v)) {
+        if constexpr (bool(debug)) {
+            std::cerr << "could not find hash factors after " << error->attempts
+                      << " in " << error->duration.count() << "s using "
+                      << error->buckets << " buckets\n";
+        }
+        abort();
+    }
+}
+
+inline auto hash_function::operator()(ti_ptr tip) const {
+    auto index = unchecked_hash(tip);
+    const void* test = &control;
+
+    if constexpr (debug) {
+        auto control_tip = control[index];
+
+        if (control_tip != tip) {
+            error_handler(
+                unknown_class_error{unknown_class_error::call, tip});
+        }
+    }
+
+    return index;
+}
+
+} // namespace detail
+
 } // namespace yomm2
 } // namespace yorel
-
-#include "detail_post.hpp"
 
 #ifndef YOMM2_SHARED
     #include <yorel/yomm2/runtime.hpp>

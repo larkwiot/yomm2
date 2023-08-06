@@ -878,6 +878,32 @@ struct use_classes_aux<types<Classes...>, ClassLists...>
 std::ostream* log_on(std::ostream* os);
 std::ostream* log_off();
 
+template<class Policy>
+inline auto check_method_pointer(const word* mptr, ti_ptr key) {
+    if constexpr (Policy::enable_runtime_checks) {
+        auto& ctx = Policy::context;
+        auto p = reinterpret_cast<const char*>(mptr);
+
+        if (p == 0 && ctx.gv.empty()) {
+            // no declared methods
+            return mptr;
+        }
+
+        if (p < reinterpret_cast<const char*>(ctx.gv.data()) ||
+            p >= reinterpret_cast<const char*>(ctx.gv.data() + ctx.gv.size())) {
+            error_handler(method_table_error{key});
+        }
+
+        auto index = ctx.hash(key);
+
+        if (index >= ctx.mptrs.size() || mptr != ctx.mptrs[index]) {
+            error_handler(method_table_error{key});
+        }
+    }
+
+    return mptr;
+}
+
 } // namespace detail
 } // namespace yomm2
 } // namespace yorel
