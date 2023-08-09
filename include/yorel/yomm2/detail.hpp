@@ -61,12 +61,6 @@ operator<<(std::ostream& os, const range<const ti_ptr*>& tips) {
 
 using mptr_type = detail::word*;
 
-template<typename, typename>
-mptr_type method_table;
-
-template<typename, typename>
-mptr_type* indirect_method_table;
-
 inline void default_error_handler(const error_type& error_v);
 inline error_handler_type error_handler = detail::default_error_handler;
 

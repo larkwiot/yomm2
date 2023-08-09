@@ -150,7 +150,7 @@ template<typename Key, typename Signature, class Policy = default_policy>
 struct method;
 
 template<typename Key, typename R, typename... A, class Policy>
-struct method<Key, R(A...), Policy> : Policy::method_info_type {
+struct method<Key, R(A...), Policy> : detail::method_info {
     using self_type = method;
     using policy_type = Policy;
     using declared_argument_types = detail::types<A...>;
@@ -331,8 +331,8 @@ struct class_declaration<detail::types<Class, Bases...>, Policy> : detail::class
         last_base = type_id_list<bases_type>::end;
         Policy::catalog.classes.push_front(*this);
         is_abstract = std::is_abstract_v<class_type>;
-        indirect_method_table<class_type, Policy> = &method_table<class_type, Policy>;
-        intrusive_mptr = &method_table<class_type, Policy>;
+        Policy::template indirect_method_table<class_type> = &Policy::template method_table<class_type>;
+        intrusive_mptr = &Policy::template method_table<class_type>;
     }
 
     ~class_declaration() {
@@ -375,21 +375,23 @@ context with_scope<Policy>::context;
 
 template<class Policy>
 struct with_method_tables {
-    template<typename>
+    template<class Class>
     static detail::mptr_type method_table;
 
-    template<typename>
+    template<class Class>
     static detail::mptr_type* indirect_method_table;
 };
 
-template<typename>
-static detail::mptr_type method_table;
+template<class Policy>
+template<class Class>
+detail::mptr_type with_method_tables<Policy>::method_table;
 
-template<typename>
-static detail::mptr_type* indirect_method_table;
+template<class Policy>
+template<class Class>
+detail::mptr_type* with_method_tables<Policy>::indirect_method_table;
 
-struct yOMM2_API basic_policy : virtual abstract_policy {
-    using method_info_type = detail::method_info;
+struct yOMM2_API basic_policy : virtual abstract_policy,
+                                with_method_tables<basic_policy> {
     static struct context context;
     static struct catalog catalog;
 };
@@ -439,13 +441,11 @@ class virtual_ptr_aux {
         mptr_type mptr;
 
         if constexpr (Policy::use_indirect_method_pointers) {
-            mptr = detail::indirect_method_table<
-                typename detail::virtual_traits<Other&>::polymorphic_type,
-                Policy>;
+            mptr = Policy::template indirect_method_table<
+                typename detail::virtual_traits<Other&>::polymorphic_type>;
         } else {
-            mptr = detail::method_table<
-                typename detail::virtual_traits<Other&>::polymorphic_type,
-                Policy>;
+            mptr = Policy::template method_table<
+                typename detail::virtual_traits<Other&>::polymorphic_type>;
         }
 
         if constexpr (debug) {
@@ -831,13 +831,11 @@ virtual_ptr_aux<Class, Policy, Box>::dynamic_method_table(Other& obj) {
 
     if (key == final_key) {
         if constexpr (Policy::use_indirect_method_pointers) {
-            mptr = detail::indirect_method_table<
-                typename detail::virtual_traits<Other&>::polymorphic_type,
-                Policy>;
+            mptr = Policy::template indirect_method_table<
+                typename detail::virtual_traits<Other&>::polymorphic_type>;
         } else {
-            mptr = detail::method_table<
-                typename detail::virtual_traits<Other&>::polymorphic_type,
-                Policy>;
+            mptr = Policy::template method_table<
+                typename detail::virtual_traits<Other&>::polymorphic_type>;
         }
     } else {
         auto index = Policy::context.hash(key);
@@ -935,8 +933,7 @@ inline auto hash_function::operator()(ti_ptr tip) const {
         auto control_tip = control[index];
 
         if (control_tip != tip) {
-            error_handler(
-                unknown_class_error{unknown_class_error::call, tip});
+            error_handler(unknown_class_error{unknown_class_error::call, tip});
         }
     }
 

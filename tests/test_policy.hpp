@@ -6,8 +6,9 @@
 namespace yorel {
 namespace yomm2 {
 
-template<int Key, class BasePolicy = yorel::yomm2::default_policy>
-struct test_policy : BasePolicy {
+template<int Key, class BasePolicy = yorel::yomm2::policy::abstract_policy>
+struct test_policy : BasePolicy,
+                     policy::with_method_tables<test_policy<Key, BasePolicy>> {
     static yorel::yomm2::catalog catalog;
     static yorel::yomm2::context context;
 };
