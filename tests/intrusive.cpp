@@ -16,9 +16,9 @@
 
 using namespace yorel::yomm2;
 
-using direct_policy = test_policy<__COUNTER__>;
+using direct_policy = test_policy_<__COUNTER__>;
 
-struct indirect_policy : test_policy<__COUNTER__> {
+struct indirect_policy : test_policy_<__COUNTER__> {
     static constexpr bool use_indirect_method_pointers = true;
 };
 
@@ -105,11 +105,11 @@ struct Animal : root<Animal> {
 
 struct Dog : Animal {};
 
-using policy = test_policy<__COUNTER__>;
+using test_policy = test_policy_<__COUNTER__>;
 
-register_classes(policy, Animal, Dog);
+register_classes(test_policy, Animal, Dog);
 
-declare_method(std::string, kick, (virtual_<Animal&>), policy);
+declare_method(std::string, kick, (virtual_<Animal&>), test_policy);
 
 BOOST_AUTO_TEST_CASE(test_bad_intrusive_mptr) {
     auto prev_handler = set_error_handler([](const error_type& ev) {
@@ -120,7 +120,7 @@ BOOST_AUTO_TEST_CASE(test_bad_intrusive_mptr) {
         }
     });
 
-    update<policy>();
+    update<test_policy>();
 
     try {
         Dog snoopy;
