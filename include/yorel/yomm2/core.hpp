@@ -64,31 +64,30 @@ struct abstract_policy {
 };
 
 template<class Policy>
-struct yOMM2_API with_scope : virtual abstract_policy {
+struct with_scope : virtual abstract_policy {
     static struct context context;
     static struct catalog catalog;
 };
 
 template<class Policy>
-struct yOMM2_API with_method_tables : virtual abstract_policy {
+struct with_method_tables : virtual abstract_policy {
     template<class Class>
     static detail::mptr_type method_table;
-
     template<class Class>
     static detail::mptr_type* indirect_method_table;
 };
 
 template<class Policy>
 template<class Class>
-detail::mptr_type yOMM2_API with_method_tables<Policy>::method_table;
+detail::mptr_type with_method_tables<Policy>::method_table;
 
 template<class Policy>
 template<class Class>
-detail::mptr_type* yOMM2_API with_method_tables<Policy>::indirect_method_table =
+detail::mptr_type* with_method_tables<Policy>::indirect_method_table =
     &with_method_tables<Policy>::method_table<Class>;
 
-struct yOMM2_API basic_policy : with_scope<basic_policy>,
-                                with_method_tables<basic_policy> {
+struct basic_policy : with_scope<basic_policy>,
+                      with_method_tables<basic_policy> {
 #ifdef NDEBUG
     static constexpr bool enable_runtime_checks = false;
     static constexpr bool runtime_checks = false;
@@ -100,8 +99,20 @@ struct yOMM2_API basic_policy : with_scope<basic_policy>,
 
 struct yOMM2_API library_policy : basic_policy {
     static constexpr bool enable_runtime_checks = true;
+    static struct context context;
+    static struct catalog catalog;
+    template<class Class>
+    static detail::mptr_type method_table;
+    template<class Class>
+    static detail::mptr_type* indirect_method_table;
 };
 
+template<class Class>
+detail::mptr_type library_policy::method_table;
+
+template<class Class>
+detail::mptr_type* library_policy::indirect_method_table =
+    &library_policy::method_table<Class>;
 } // namespace policy
 
 #if defined(YOMM2_SHARED)

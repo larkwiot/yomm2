@@ -19,6 +19,11 @@
 namespace yorel {
 namespace yomm2 {
 
+namespace policy {
+yOMM2_API context library_policy::context;
+yOMM2_API catalog library_policy::catalog;
+} // namespace policy
+
 template void update<default_policy>();
 
 yOMM2_API void update() {
