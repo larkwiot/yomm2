@@ -70,7 +70,7 @@ struct with_scope : virtual abstract_policy {
 };
 
 template<class Policy>
-struct with_method_tables : virtual abstract_policy {
+struct yOMM2_API with_method_tables : virtual abstract_policy {
     template<class Class>
     static detail::mptr_type method_table;
 
