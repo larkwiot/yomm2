@@ -64,13 +64,13 @@ struct abstract_policy {
 };
 
 template<class Policy>
-struct with_scope : virtual abstract_policy {
+struct yOMM2_API with_scope : virtual abstract_policy {
     static struct context context;
     static struct catalog catalog;
 };
 
 template<class Policy>
-struct with_method_tables : virtual abstract_policy {
+struct yOMM2_API with_method_tables : virtual abstract_policy {
     template<class Class>
     static detail::mptr_type method_table;
 
@@ -98,15 +98,8 @@ struct yOMM2_API basic_policy : with_scope<basic_policy>,
 #endif
 };
 
-struct yOMM2_API library_policy : abstract_policy {
-    // Cannot use 'with_*' because static vars need to be exported.
-    static struct context context;
-    static struct catalog catalog;
-    template<class Class>
-    static detail::mptr_type method_table;
-    template<class Class>
-    static detail::mptr_type* indirect_method_table;
-
+struct yOMM2_API library_policy : with_scope<library_policy>,
+                                  with_method_tables<library_policy> {
     static constexpr bool enable_runtime_checks = true;
 #ifdef NDEBUG
     static constexpr bool runtime_checks = false;
@@ -114,13 +107,6 @@ struct yOMM2_API library_policy : abstract_policy {
     static constexpr bool runtime_checks = true;
 #endif
 };
-
-template<class Class>
-detail::mptr_type library_policy::method_table;
-
-template<class Class>
-detail::mptr_type* library_policy::indirect_method_table =
-    &library_policy::method_table<Class>;
 
 } // namespace policy
 

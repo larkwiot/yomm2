@@ -30,10 +30,5 @@ yOMM2_API std::ostream* logs;
 yOMM2_API unsigned trace_flags;
 } // namespace detail
 
-namespace policy {
-yOMM2_API context library_policy::context;
-yOMM2_API catalog library_policy::catalog;
-} // namespace policy
-
 } // namespace yomm2
 } // namespace yorel
