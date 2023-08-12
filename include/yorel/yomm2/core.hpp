@@ -70,7 +70,7 @@ struct with_scope : virtual abstract_policy {
 };
 
 template<class Policy>
-struct yOMM2_API with_method_tables : virtual abstract_policy {
+struct with_method_tables : virtual abstract_policy {
     template<class Class>
     static detail::mptr_type method_table;
 
@@ -98,10 +98,14 @@ struct yOMM2_API basic_policy : with_scope<basic_policy>,
 #endif
 };
 
-struct yOMM2_API library_policy : with_method_tables<library_policy> {
-    // Cannot use 'with_method_tables' because they need to be exported.
+struct yOMM2_API library_policy : abstract_policy {
+    // Cannot use 'with_*' because static vars need to be exported.
     static struct context context;
     static struct catalog catalog;
+    template<class Class>
+    static detail::mptr_type method_table;
+    template<class Class>
+    static detail::mptr_type* indirect_method_table;
 
     static constexpr bool enable_runtime_checks = true;
 #ifdef NDEBUG
@@ -110,6 +114,13 @@ struct yOMM2_API library_policy : with_method_tables<library_policy> {
     static constexpr bool runtime_checks = true;
 #endif
 };
+
+template<class Class>
+detail::mptr_type library_policy::method_table;
+
+template<class Class>
+detail::mptr_type* library_policy::indirect_method_table =
+    &library_policy::method_table<Class>;
 
 } // namespace policy
 
@@ -120,7 +131,7 @@ using default_policy = policy::basic_policy;
 #endif
 
 // -----------------------------------------------------------------------------
-// Error Handling
+// Error handling
 
 struct resolution_error {
     enum status_type { no_definition = 1, ambiguous } status;
@@ -205,6 +216,9 @@ struct class_declaration;
 namespace yorel {
 namespace yomm2 {
 
+// -----------------------------------------------------------------------------
+// Scope
+
 struct context {
     std::vector<detail::word> gv;
     std::vector<detail::word*> mptrs;
@@ -221,6 +235,9 @@ struct catalog {
     detail::static_chain<detail::class_info> classes;
     detail::static_chain<detail::method_info> methods;
 };
+
+// -----------------------------------------------------------------------------
+// Method
 
 template<typename Key, typename Signature, class Policy = default_policy>
 struct method;
@@ -384,6 +401,9 @@ typename method<Key, R(A...), Policy>::next_type
 
 // clang-format off
 
+// -----------------------------------------------------------------------------
+// class_declaration
+
 template<typename Class, typename... Rest>
 struct class_declaration : class_declaration<
     detail::remove_policy<Class, Rest...>,
@@ -422,7 +442,7 @@ struct class_declaration<detail::types<Class, Bases...>> : class_declaration<
 template<typename... T>
 using use_classes = typename detail::use_classes_aux<T...>::type;
 
-// =============================================================================
+// -----------------------------------------------------------------------------
 // virtual_ptr
 
 template<
@@ -612,20 +632,7 @@ inline auto make_virtual_shared() {
     return virtual_shared_ptr<Class, Policy>(std::make_shared<Class>());
 }
 
-inline error_handler_type set_error_handler(error_handler_type handler) {
-    auto prev = detail::error_handler;
-    detail::error_handler = handler;
-    return prev;
-}
-
-inline method_call_error_handler yOMM2_API
-set_method_call_error_handler(method_call_error_handler handler) {
-    auto prev = detail::method_call_error_handler_p;
-    detail::method_call_error_handler_p = handler;
-    return prev;
-}
-
-// =============================================================================
+// -----------------------------------------------------------------------------
 // definitions
 
 template<typename Key, typename R, typename... A, class Policy>
@@ -885,6 +892,19 @@ template<class Policy>
 context with_scope<Policy>::context;
 
 } // namespace policy
+
+inline error_handler_type set_error_handler(error_handler_type handler) {
+    auto prev = detail::error_handler;
+    detail::error_handler = handler;
+    return prev;
+}
+
+inline method_call_error_handler yOMM2_API
+set_method_call_error_handler(method_call_error_handler handler) {
+    auto prev = detail::method_call_error_handler_p;
+    detail::method_call_error_handler_p = handler;
+    return prev;
+}
 
 template<class Policy>
 void update();
