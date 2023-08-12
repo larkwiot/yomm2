@@ -80,11 +80,11 @@ struct yOMM2_API with_method_tables : virtual abstract_policy {
 
 template<class Policy>
 template<class Class>
-detail::mptr_type with_method_tables<Policy>::method_table;
+detail::mptr_type yOMM2_API with_method_tables<Policy>::method_table;
 
 template<class Policy>
 template<class Class>
-detail::mptr_type* with_method_tables<Policy>::indirect_method_table =
+detail::mptr_type* yOMM2_API with_method_tables<Policy>::indirect_method_table =
     &with_method_tables<Policy>::method_table<Class>;
 
 struct yOMM2_API basic_policy : with_scope<basic_policy>,
@@ -866,10 +866,10 @@ virtual_ptr_aux<Class, Policy, Box>::dynamic_method_table(Other& obj) {
 namespace policy {
 
 template<class Policy>
-catalog with_scope<Policy>::catalog;
+catalog yOMM2_API with_scope<Policy>::catalog;
 
 template<class Policy>
-context with_scope<Policy>::context;
+context yOMM2_API with_scope<Policy>::context;
 
 } // namespace policy
 
