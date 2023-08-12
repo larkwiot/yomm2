@@ -1171,13 +1171,6 @@ void update() {
     rt.update();
 }
 
-#if !defined(YOMM2_SHARED)
-namespace policy {
-inline context basic_policy::context;
-inline catalog basic_policy::catalog;
-} // namespace policy
-#endif
-
 } // namespace yomm2
 } // namespace yorel
 

@@ -37,6 +37,20 @@
 namespace yorel {
 namespace yomm2 {
 
+namespace detail {
+
+union word {
+    void* pf;
+    const word* pw;
+    size_t i;
+    const void* ti;
+};
+
+using mptr_type = detail::word*;
+using ti_ptr = const std::type_info*;
+
+} // namespace detail
+
 template<typename T>
 struct virtual_;
 
@@ -52,11 +66,16 @@ struct class_declaration;
 namespace policy {
 
 struct abstract_policy;
+struct library_policy;
 struct basic_policy;
 
-} // namespace policy
+#if defined(YOMM2_SHARED)
+using default_policy = library_policy;
+#else
+using default_policy = basic_policy;
+#endif
 
-using default_policy = policy::basic_policy;
+} // namespace policy
 
 struct resolution_error {
     enum status_type { no_definition = 1, ambiguous } status;
@@ -118,6 +137,66 @@ using method_call_error_handler = void (*)(
 inline method_call_error_handler yOMM2_API
 set_method_call_error_handler(method_call_error_handler handler);
 
+struct context;
+struct catalog;
+
+namespace policy {
+
+struct abstract_policy {
+    static constexpr bool use_indirect_method_pointers = false;
+    static constexpr bool enable_runtime_checks = false;
+    static constexpr bool runtime_checks = false;
+};
+
+template<class Policy>
+struct with_scope : virtual abstract_policy {
+    static struct context context;
+    static struct catalog catalog;
+};
+
+template<class Policy>
+struct with_method_tables : virtual abstract_policy {
+    template<class Class>
+    static detail::mptr_type method_table;
+
+    template<class Class>
+    static detail::mptr_type* indirect_method_table;
+};
+
+template<class Policy>
+template<class Class>
+detail::mptr_type with_method_tables<Policy>::method_table;
+
+template<class Policy>
+template<class Class>
+detail::mptr_type* with_method_tables<Policy>::indirect_method_table;
+
+struct yOMM2_API basic_policy : with_scope<basic_policy>,
+                                  with_method_tables<basic_policy> {
+#ifdef NDEBUG
+    static constexpr bool enable_runtime_checks = false;
+    static constexpr bool runtime_checks = false;
+#else
+    static constexpr bool enable_runtime_checks = true;
+    static constexpr bool runtime_checks = true;
+#endif
+};
+
+struct yOMM2_API library_policy : with_method_tables<library_policy> {
+    // Cannot use 'with_method_tables' because they need to be exported.
+    static struct context context;
+    static struct catalog catalog;
+
+    static constexpr bool enable_runtime_checks = true;
+#ifdef NDEBUG
+    static constexpr bool runtime_checks = false;
+#else
+    static constexpr bool runtime_checks = true;
+#endif
+};
+
+} // namespace policy
+
 template<class Policy>
 yOMM2_API void update();
 
@@ -146,7 +225,8 @@ struct catalog {
     detail::static_chain<detail::method_info> methods;
 };
 
-template<typename Key, typename Signature, class Policy = default_policy>
+template<
+    typename Key, typename Signature, class Policy = policy::default_policy>
 struct method;
 
 template<typename Key, typename R, typename... A, class Policy>
@@ -342,7 +422,7 @@ struct class_declaration<detail::types<Class, Bases...>, Policy> : detail::class
 
 template<typename Class, typename... Bases>
 struct class_declaration<detail::types<Class, Bases...>> : class_declaration<
-    detail::types<Class, Bases...>, default_policy
+    detail::types<Class, Bases...>, policy::default_policy
 > {};
 
 // clang-format on
@@ -350,59 +430,11 @@ struct class_declaration<detail::types<Class, Bases...>> : class_declaration<
 template<typename... T>
 using use_classes = typename detail::use_classes_aux<T...>::type;
 
-namespace policy {
-
-struct abstract_policy {
-    static constexpr bool use_indirect_method_pointers = false;
-#ifdef NDEBUG
-    static constexpr bool enable_runtime_checks = false;
-#else
-    static constexpr bool enable_runtime_checks = true;
-#endif
-    ;
-};
-
-template<class Policy>
-struct with_scope : virtual abstract_policy {
-    static struct context context;
-    static struct catalog catalog;
-};
-
-template<class Policy>
-catalog with_scope<Policy>::catalog;
-template<class Policy>
-context with_scope<Policy>::context;
-
-template<class Policy>
-struct with_method_tables {
-    template<class Class>
-    static detail::mptr_type method_table;
-
-    template<class Class>
-    static detail::mptr_type* indirect_method_table;
-};
-
-template<class Policy>
-template<class Class>
-detail::mptr_type with_method_tables<Policy>::method_table;
-
-template<class Policy>
-template<class Class>
-detail::mptr_type* with_method_tables<Policy>::indirect_method_table;
-
-struct yOMM2_API basic_policy : virtual abstract_policy,
-                                with_method_tables<basic_policy> {
-    static struct context context;
-    static struct catalog catalog;
-};
-
-} // namespace policy
-
 // =============================================================================
 // virtual_ptr
 
 template<
-    class Class, class Policy = default_policy,
+    class Class, class Policy = policy::default_policy,
     bool IsSmartPtr = detail::virtual_ptr_traits<Class, Policy>::is_smart_ptr>
 class virtual_ptr;
 
@@ -580,10 +612,10 @@ class virtual_ptr<Class, Policy, true>
     }
 };
 
-template<class Class, class Policy = default_policy>
+template<class Class, class Policy = policy::default_policy>
 using virtual_shared_ptr = virtual_ptr<std::shared_ptr<Class>, Policy>;
 
-template<class Class, class Policy = default_policy>
+template<class Class, class Policy = policy::default_policy>
 inline auto make_virtual_shared() {
     return virtual_shared_ptr<Class, Policy>(std::make_shared<Class>());
 }
@@ -827,7 +859,8 @@ virtual_ptr_aux<Class, Policy, Box>::dynamic_method_table(Other& obj) {
     mptr_type mptr;
 
     auto dynamic_key = virtual_traits<Other&>::key(obj);
-    auto static_key = &typeid(typename virtual_traits<Other&>::polymorphic_type);
+    auto static_key =
+        &typeid(typename virtual_traits<Other&>::polymorphic_type);
 
     if (dynamic_key == static_key) {
         if constexpr (Policy::use_indirect_method_pointers) {
@@ -856,6 +889,16 @@ virtual_ptr_aux<Class, Policy, Box>::dynamic_method_table(Other& obj) {
     return mptr;
 }
 
+namespace policy {
+
+template<class Policy>
+catalog with_scope<Policy>::catalog;
+
+template<class Policy>
+context with_scope<Policy>::context;
+
+} // namespace policy
+
 template<class Policy>
 yOMM2_API void update();
 
@@ -863,7 +906,7 @@ yOMM2_API void update();
 yOMM2_API void update();
 #else
 yOMM2_API inline void update() {
-    update<default_policy>();
+    update<policy::default_policy>();
 }
 #endif
 

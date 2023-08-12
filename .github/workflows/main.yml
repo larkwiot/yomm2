@@ -48,34 +48,6 @@ jobs:
           pwd
           cd cmake.bld/examples
           find . -type f -executable -exec {} \;
-  ubuntu-mix-debug-release:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        compiler: [g++-10, clang++-12]
-        standard: [17]
-        config: [ReleaseDebug, DebugRelease]
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install Boost
-        run: |
-          sudo apt update
-          sudo apt install libboost-all-dev
-      - name: Configure
-        run: |
-          mkdir cmake.bld
-          cd cmake.bld
-          cmake .. -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DCMAKE_BUILD_TYPE=${{ matrix.config }} -DCMAKE_CXX_STANDARD=${{ matrix.standard }} -DYOMM2_ENABLE_TESTS=1 YOMM2_ENABLE_BENCHMARKS=1
-      - name: Build
-        run: VERBOSE=1 cmake --build cmake.bld
-      - name: Unit Tests
-        run: |
-          cd cmake.bld
-          ctest --rerun-failed --output-on-failure .
-      - name: Examples
-        run: |
-          cd cmake.bld/examples
-          find . -type f -executable -exec {} \;
   ubuntu-shared:
     runs-on: ubuntu-latest
     strategy:
@@ -104,7 +76,7 @@ jobs:
         run: |
           mkdir cmake.bld
           cd cmake.bld
-          cmake .. -DYOMM2_SHARED=1 -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=${{ matrix.standard }} -DYOMM2_ENABLE_TESTS=1 YOMM2_ENABLE_BENCHMARKS=1
+          cmake .. -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=${{ matrix.standard }} -DYOMM2_ENABLE_TESTS=1 YOMM2_ENABLE_BENCHMARKS=1 -DYOMM2_SHARED=1
       - name: Build
         run: VERBOSE=1 cmake --build cmake.bld
       - name: Unit Tests
@@ -114,6 +86,34 @@ jobs:
       - name: Examples
         run: |
           pwd
+          cd cmake.bld/examples
+          find . -type f -executable -exec {} \;
+  ubuntu-mix-debug-release:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [g++-10, clang++-12]
+        standard: [17]
+        config: [ReleaseDebug, DebugRelease]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Boost
+        run: |
+          sudo apt update
+          sudo apt install libboost-all-dev
+      - name: Configure
+        run: |
+          mkdir cmake.bld
+          cd cmake.bld
+          cmake .. -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DCMAKE_BUILD_TYPE=${{ matrix.config }} -DCMAKE_CXX_STANDARD=${{ matrix.standard }} -DYOMM2_ENABLE_TESTS=1 YOMM2_ENABLE_BENCHMARKS=1 -DYOMM2_SHARED=1
+      - name: Build
+        run: VERBOSE=1 cmake --build cmake.bld
+      - name: Unit Tests
+        run: |
+          cd cmake.bld
+          ctest --rerun-failed --output-on-failure .
+      - name: Examples
+        run: |
           cd cmake.bld/examples
           find . -type f -executable -exec {} \;
   windows:

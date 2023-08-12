@@ -13,15 +13,6 @@ constexpr bool debug = false;
 constexpr bool debug = true;
 #endif
 
-union word {
-    void* pf;
-    const word* pw;
-    size_t i;
-    const void* ti;
-};
-
-using ti_ptr = const std::type_info*;
-
 template<typename... Types>
 struct types;
 
@@ -58,8 +49,6 @@ operator<<(std::ostream& os, const range<const ti_ptr*>& tips) {
 
     return os << ")";
 }
-
-using mptr_type = detail::word*;
 
 inline void default_error_handler(const error_type& error_v);
 inline error_handler_type error_handler = detail::default_error_handler;
@@ -295,7 +284,7 @@ struct split_policy_aux<true, Policy, Classes...> {
 
 template<typename... Classes>
 struct split_policy_aux<false, Classes...> {
-    using policy = default_policy;
+    using policy = policy::default_policy;
     using classes = types<Classes...>;
 };
 
