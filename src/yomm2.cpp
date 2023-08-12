@@ -19,7 +19,7 @@
 namespace yorel {
 namespace yomm2 {
 
-template yOMM2_API void update<default_policy>();
+template void update<default_policy>();
 
 yOMM2_API void update() {
     update<default_policy>();

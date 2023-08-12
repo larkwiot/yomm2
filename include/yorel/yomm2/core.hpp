@@ -894,12 +894,12 @@ context with_scope<Policy>::context;
 } // namespace policy
 
 template<class Policy>
-yOMM2_API void update();
+void update();
 
 #ifdef YOMM2_SHARED
 yOMM2_API void update();
 #else
-yOMM2_API inline void update() {
+inline void update() {
     update<default_policy>();
 }
 #endif
