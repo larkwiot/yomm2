@@ -228,7 +228,7 @@ inline std::size_t hash(std::uintptr_t mult, std::size_t shift, const void* p) {
 
 struct class_info : static_chain<class_info>::static_link {
     detail::ti_ptr ti;
-    word** intrusive_mptr;
+    word** method_table;
     const detail::ti_ptr *first_base, *last_base;
     const char* name() const {
         return ti->name();

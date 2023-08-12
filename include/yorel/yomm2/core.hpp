@@ -169,7 +169,8 @@ detail::mptr_type with_method_tables<Policy>::method_table;
 
 template<class Policy>
 template<class Class>
-detail::mptr_type* with_method_tables<Policy>::indirect_method_table;
+detail::mptr_type* with_method_tables<Policy>::indirect_method_table =
+    &with_method_tables<Policy>::method_table<Class>;
 
 struct yOMM2_API basic_policy : with_scope<basic_policy>,
                                 with_method_tables<basic_policy> {
@@ -399,19 +400,15 @@ struct class_declaration<detail::types<Class, Bases...>, Policy> : detail::class
     // There is a possibility that the same class is registered with
     // different bases. This will be caught by augment_classes.
 
-    using class_type = Class;
-    using bases_type = detail::types<Bases...>;
-
     class_declaration() {
         using namespace detail;
 
-        ti = &typeid(class_type);
-        first_base = type_id_list<bases_type>::begin;
-        last_base = type_id_list<bases_type>::end;
+        ti = &typeid(Class);
+        first_base = type_id_list<types<Bases...>>::begin;
+        last_base = type_id_list<types<Bases...>>::end;
         Policy::catalog.classes.push_front(*this);
-        is_abstract = std::is_abstract_v<class_type>;
-        Policy::template indirect_method_table<class_type> = &Policy::template method_table<class_type>;
-        intrusive_mptr = &Policy::template method_table<class_type>;
+        is_abstract = std::is_abstract_v<Class>;
+        method_table = &Policy::template method_table<Class>;
     }
 
     ~class_declaration() {

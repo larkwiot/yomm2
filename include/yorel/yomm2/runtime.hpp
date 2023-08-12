@@ -52,11 +52,10 @@ struct rt_class {
     int next_slot{0};
     int first_used_slot{-1};
     int layer{0};
-    size_t mark{0};   // to detect cycles, aka temporary mark
+    size_t mark{0};   // temporary mark to detect cycles
     size_t weight{0}; // number of proper direct or indirect bases
     std::vector<size_t> mtbl;
-    detail::word* mptr;
-    detail::word** intrusive_mptr;
+    detail::word** method_table;
 
     auto name() const {
         return ti_ptrs[0]->name();
@@ -101,7 +100,6 @@ struct rt_method {
     }
     dispatch_stats_t stats;
 };
-
 
 struct metrics_t : dispatch_stats_t {
     size_t method_table_size, dispatch_table_size, hash_table_size;
@@ -235,7 +233,7 @@ void runtime<Policy>::augment_classes() {
             if (rtc == nullptr) {
                 rtc = &classes.emplace_back();
                 rtc->is_abstract = cr.is_abstract;
-                rtc->intrusive_mptr = cr.intrusive_mptr;
+                rtc->method_table = cr.method_table;
             }
 
             // In the unlikely case that a class does have more than one
@@ -912,7 +910,6 @@ void runtime<Policy>::find_hash_function(
 } // namespace yomm2
 } // namespace yorel
 
-
 namespace yorel {
 namespace yomm2 {
 namespace detail {
@@ -1009,17 +1006,17 @@ void runtime<Policy>::install_gv() {
         for (auto& cls : classes) {
             if (cls.first_used_slot == -1) {
                 // corner case: no methods for this class
-                cls.mptr =
+                *cls.method_table =
                     Policy::context.gv.data() + Policy::context.gv.size();
             } else {
-                cls.mptr = Policy::context.gv.data() +
+                *cls.method_table = Policy::context.gv.data() +
                     Policy::context.gv.size() - cls.first_used_slot;
             }
             if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
                 if (pass) {
                     ++trace << std::setw(4) << Policy::context.gv.size()
-                            << " mtbl for " << cls.name() << ": " << cls.mptr
-                            << "\n";
+                            << " mtbl for " << cls.name() << ": "
+                            << *cls.method_table << "\n";
                 }
             }
 
@@ -1033,10 +1030,8 @@ void runtime<Policy>::install_gv() {
             if (pass) {
                 for (auto ti : cls.ti_ptrs) {
                     auto index = Policy::context.hash.unchecked_hash(ti);
-                    Policy::context.mptrs[index] = cls.mptr;
+                    Policy::context.mptrs[index] = *cls.method_table;
                     Policy::context.hash.control[index] = ti;
-                    Policy::context.indirect_mptrs[index] = cls.intrusive_mptr;
-                    *cls.intrusive_mptr = cls.mptr;
                 }
             }
         }
@@ -1054,17 +1049,17 @@ void runtime<Policy>::optimize() {
         auto slot = m.slots[0];
         if (m.arity() == 1) {
             for (auto cls : m.vp[0]->covariant_classes) {
-                auto pf = m.dispatch_table[cls->mptr[slot].i];
+                auto pf = m.dispatch_table[(*cls->method_table)[slot].i];
                 if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
                     ++trace << cls->name() << " mtbl[" << slot << "] = " << pf
                             << " (function)"
                             << "\n";
                 }
-                cls->mptr[slot].pf = pf;
+                (*cls->method_table)[slot].pf = pf;
             }
         } else {
             for (auto cls : m.vp[0]->covariant_classes) {
-                auto pw = m.gv_dispatch_table + cls->mptr[slot].i;
+                auto pw = m.gv_dispatch_table + (*cls->method_table)[slot].i;
 
                 if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
                     ++trace << "    " << cls->name() << " mtbl[" << slot
@@ -1072,7 +1067,7 @@ void runtime<Policy>::optimize() {
                             << "\n";
                 }
 
-                cls->mptr[slot].pw = pw;
+                (*cls->method_table)[slot].pw = pw;
             }
         }
     }
