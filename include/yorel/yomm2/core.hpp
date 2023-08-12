@@ -69,13 +69,13 @@ struct abstract_policy;
 struct library_policy;
 struct basic_policy;
 
-#if defined(YOMM2_SHARED)
-using default_policy = library_policy;
-#else
-using default_policy = basic_policy;
-#endif
-
 } // namespace policy
+
+#if defined(YOMM2_SHARED)
+using default_policy = policy::library_policy;
+#else
+using default_policy = policy::basic_policy;
+#endif
 
 struct resolution_error {
     enum status_type { no_definition = 1, ambiguous } status;
@@ -172,7 +172,7 @@ template<class Class>
 detail::mptr_type* with_method_tables<Policy>::indirect_method_table;
 
 struct yOMM2_API basic_policy : with_scope<basic_policy>,
-                                  with_method_tables<basic_policy> {
+                                with_method_tables<basic_policy> {
 #ifdef NDEBUG
     static constexpr bool enable_runtime_checks = false;
     static constexpr bool runtime_checks = false;
@@ -225,8 +225,7 @@ struct catalog {
     detail::static_chain<detail::method_info> methods;
 };
 
-template<
-    typename Key, typename Signature, class Policy = policy::default_policy>
+template<typename Key, typename Signature, class Policy = default_policy>
 struct method;
 
 template<typename Key, typename R, typename... A, class Policy>
@@ -422,7 +421,7 @@ struct class_declaration<detail::types<Class, Bases...>, Policy> : detail::class
 
 template<typename Class, typename... Bases>
 struct class_declaration<detail::types<Class, Bases...>> : class_declaration<
-    detail::types<Class, Bases...>, policy::default_policy
+    detail::types<Class, Bases...>, default_policy
 > {};
 
 // clang-format on
@@ -434,7 +433,7 @@ using use_classes = typename detail::use_classes_aux<T...>::type;
 // virtual_ptr
 
 template<
-    class Class, class Policy = policy::default_policy,
+    class Class, class Policy = default_policy,
     bool IsSmartPtr = detail::virtual_ptr_traits<Class, Policy>::is_smart_ptr>
 class virtual_ptr;
 
@@ -612,10 +611,10 @@ class virtual_ptr<Class, Policy, true>
     }
 };
 
-template<class Class, class Policy = policy::default_policy>
+template<class Class, class Policy = default_policy>
 using virtual_shared_ptr = virtual_ptr<std::shared_ptr<Class>, Policy>;
 
-template<class Class, class Policy = policy::default_policy>
+template<class Class, class Policy = default_policy>
 inline auto make_virtual_shared() {
     return virtual_shared_ptr<Class, Policy>(std::make_shared<Class>());
 }
@@ -697,7 +696,8 @@ inline const detail::word* method<Key, R(A...), Policy>::get_mptr(
 
     if constexpr (has_mptr<resolver_type<ArgType>>) {
         mptr = arg.yomm2_mptr();
-        check_method_pointer<Policy>(mptr, virtual_traits<ArgType>::key(arg));
+        check_intrusive_method_pointer<Policy>(
+            mptr, virtual_traits<ArgType>::key(arg));
     } else if constexpr (is_virtual_ptr<ArgType>) {
         mptr = arg.method_table();
         // No need to check the method pointer: this was done when the
@@ -880,12 +880,6 @@ virtual_ptr_aux<Class, Policy, Box>::dynamic_method_table(Other& obj) {
         }
     }
 
-    if constexpr (Policy::use_indirect_method_pointers) {
-        check_method_pointer<Policy>(*mptr, dynamic_key);
-    } else {
-        check_method_pointer<Policy>(mptr, dynamic_key);
-    }
-
     return mptr;
 }
 
@@ -906,7 +900,7 @@ yOMM2_API void update();
 yOMM2_API void update();
 #else
 yOMM2_API inline void update() {
-    update<policy::default_policy>();
+    update<default_policy>();
 }
 #endif
 

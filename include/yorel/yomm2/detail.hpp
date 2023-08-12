@@ -284,7 +284,7 @@ struct split_policy_aux<true, Policy, Classes...> {
 
 template<typename... Classes>
 struct split_policy_aux<false, Classes...> {
-    using policy = policy::default_policy;
+    using policy = default_policy;
     using classes = types<Classes...>;
 };
 
@@ -862,24 +862,28 @@ std::ostream* log_on(std::ostream* os);
 std::ostream* log_off();
 
 template<class Policy>
-inline auto check_method_pointer(const word* mptr, ti_ptr key) {
-    if constexpr (Policy::enable_runtime_checks) {
+inline auto check_intrusive_method_pointer(const word* mptr, ti_ptr key) {
+    // Intrusive mode only.
+
+    if constexpr (Policy::runtime_checks) {
         auto& ctx = Policy::context;
         auto p = reinterpret_cast<const char*>(mptr);
 
-        if (p == 0 && ctx.gv.empty()) {
+        if (ctx.gv.empty()) {
             // no declared methods
             return mptr;
         }
 
         if (p < reinterpret_cast<const char*>(ctx.gv.data()) ||
             p >= reinterpret_cast<const char*>(ctx.gv.data() + ctx.gv.size())) {
+            // probably some random value
             error_handler(method_table_error{key});
         }
 
         auto index = ctx.hash(key);
 
         if (index >= ctx.mptrs.size() || mptr != ctx.mptrs[index]) {
+            // probably a missing derived<> in a derived class
             error_handler(method_table_error{key});
         }
     }
