@@ -98,14 +98,8 @@ struct yOMM2_API basic_policy : with_scope<basic_policy>,
 #endif
 };
 
-struct yOMM2_API library_policy : with_scope<library_policy>,
-                                  with_method_tables<library_policy> {
+struct yOMM2_API library_policy : basic_policy {
     static constexpr bool enable_runtime_checks = true;
-#ifdef NDEBUG
-    static constexpr bool runtime_checks = false;
-#else
-    static constexpr bool runtime_checks = true;
-#endif
 };
 
 } // namespace policy
