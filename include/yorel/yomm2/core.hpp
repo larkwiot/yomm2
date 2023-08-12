@@ -29,10 +29,8 @@
     #define yOMM2_API
 #endif
 
-// ====================
-// Forward declarations
-
-// To make 'detail' compile.
+// -----------------------------------------------------------------------------
+// A few details...
 
 namespace yorel {
 namespace yomm2 {
@@ -51,91 +49,8 @@ using ti_ptr = const std::type_info*;
 
 } // namespace detail
 
-template<typename T>
-struct virtual_;
-
-template<class Class, class Policy, bool IsSmartPtr>
-class virtual_ptr;
-
-template<typename Key, typename Signature, class Policy>
-struct method;
-
-template<typename Class, typename... Rest>
-struct class_declaration;
-
-namespace policy {
-
-struct abstract_policy;
-struct library_policy;
-struct basic_policy;
-
-} // namespace policy
-
-#if defined(YOMM2_SHARED)
-using default_policy = policy::library_policy;
-#else
-using default_policy = policy::basic_policy;
-#endif
-
-struct resolution_error {
-    enum status_type { no_definition = 1, ambiguous } status;
-    const std::type_info* method;
-    size_t arity;
-    const std::type_info* const* tis;
-};
-
-struct unknown_class_error {
-    enum { update = 1, call } context;
-    const std::type_info* ti;
-};
-
-struct hash_search_error {
-    size_t attempts;
-    std::chrono::duration<double> duration;
-    size_t buckets;
-};
-
-struct method_table_error {
-    const std::type_info* ti;
-};
-
-using error_type = std::variant<
-    resolution_error, unknown_class_error, hash_search_error,
-    method_table_error>;
-
-using error_handler_type = void (*)(const error_type& error);
-error_handler_type set_error_handler(error_handler_type handler);
-
-// deprecated
-
-struct method_call_error {
-    resolution_error::status_type code;
-    static constexpr auto not_implemented = resolution_error::no_definition;
-    static constexpr auto ambiguous = resolution_error::ambiguous;
-    std::string_view method_name;
-};
-
-using method_call_error_handler = void (*)(
-    const method_call_error& error, size_t arity,
-    const std::type_info* const tis[]);
-
-// end deprecated
-
-using error_type = std::variant<
-    resolution_error, unknown_class_error, hash_search_error,
-    method_table_error>;
-
-using error_handler_type = void (*)(const error_type& error);
-error_handler_type set_error_handler(error_handler_type handler);
-
-struct method_call_error;
-
-using method_call_error_handler = void (*)(
-    const method_call_error& error, size_t arity,
-    const std::type_info* const tis[]);
-
-inline method_call_error_handler yOMM2_API
-set_method_call_error_handler(method_call_error_handler handler);
+// -----------------------------------------------------------------------------
+// Policies
 
 struct context;
 struct catalog;
@@ -198,8 +113,89 @@ struct yOMM2_API library_policy : with_method_tables<library_policy> {
 
 } // namespace policy
 
-template<class Policy>
-yOMM2_API void update();
+#if defined(YOMM2_SHARED)
+using default_policy = policy::library_policy;
+#else
+using default_policy = policy::basic_policy;
+#endif
+
+// -----------------------------------------------------------------------------
+// Error Handling
+
+struct resolution_error {
+    enum status_type { no_definition = 1, ambiguous } status;
+    const std::type_info* method;
+    size_t arity;
+    const std::type_info* const* tis;
+};
+
+struct unknown_class_error {
+    enum { update = 1, call } context;
+    const std::type_info* ti;
+};
+
+struct hash_search_error {
+    size_t attempts;
+    std::chrono::duration<double> duration;
+    size_t buckets;
+};
+
+struct method_table_error {
+    const std::type_info* ti;
+};
+
+using error_type = std::variant<
+    resolution_error, unknown_class_error, hash_search_error,
+    method_table_error>;
+
+using error_handler_type = void (*)(const error_type& error);
+error_handler_type set_error_handler(error_handler_type handler);
+
+// deprecated
+
+struct method_call_error {
+    resolution_error::status_type code;
+    static constexpr auto not_implemented = resolution_error::no_definition;
+    static constexpr auto ambiguous = resolution_error::ambiguous;
+    std::string_view method_name;
+};
+
+using method_call_error_handler = void (*)(
+    const method_call_error& error, size_t arity,
+    const std::type_info* const tis[]);
+
+// end deprecated
+
+using error_type = std::variant<
+    resolution_error, unknown_class_error, hash_search_error,
+    method_table_error>;
+
+using error_handler_type = void (*)(const error_type& error);
+error_handler_type set_error_handler(error_handler_type handler);
+
+struct method_call_error;
+
+using method_call_error_handler = void (*)(
+    const method_call_error& error, size_t arity,
+    const std::type_info* const tis[]);
+
+inline method_call_error_handler yOMM2_API
+set_method_call_error_handler(method_call_error_handler handler);
+
+// -----------------------------------------------------------------------------
+// Forward declarations needed by "detail.hpp"
+
+template<typename T>
+struct virtual_;
+
+template<class Class, class Policy, bool IsSmartPtr>
+class virtual_ptr;
+
+template<typename Key, typename Signature, class Policy>
+struct method;
+
+template<typename Class, typename... Rest>
+struct class_declaration;
 
 } // namespace yomm2
 } // namespace yorel
