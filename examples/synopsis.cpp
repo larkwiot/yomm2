@@ -81,7 +81,6 @@ define_method(void, meet, (Cat& cat, Dog& dog, std::ostream& os)) {
 #include <string>
 
 int main() {
-    yorel::yomm2::default_policy::runtime_trace::os = &std::cout;
     // Initialise method dispatch tables.
     yorel::yomm2::update();
 
