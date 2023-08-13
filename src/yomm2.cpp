@@ -22,6 +22,8 @@ namespace yomm2 {
 namespace policy {
 yOMM2_API context library_policy::context;
 yOMM2_API catalog library_policy::catalog;
+yOMM2_API std::ostream* runtime_trace::os;
+yOMM2_API std::ostream* call_trace::os;
 } // namespace policy
 
 template void update<default_policy>();

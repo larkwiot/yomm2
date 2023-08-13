@@ -107,21 +107,6 @@ struct metrics_t : dispatch_stats_t {
     std::chrono::duration<double> hash_search_time;
 };
 
-template<unsigned Flags>
-struct with_indent {
-    trace_type<Flags>& trace;
-    int by;
-
-    explicit with_indent(trace_type<Flags>& trace, int by = 2)
-        : trace(trace), by(by) {
-        trace.indent += by;
-    }
-
-    ~with_indent() {
-        trace.indent -= by;
-    }
-};
-
 inline std::ostream* log_on(std::ostream* os) {
     auto prev = logs;
     logs = os;
@@ -152,7 +137,6 @@ struct runtime_data {
     std::deque<rt_class> classes;
     std::vector<rt_method> methods;
     size_t class_visit{0};
-    mutable detail::trace_type<detail::TRACE_RUNTIME> trace;
     metrics_t metrics;
 };
 
@@ -178,11 +162,52 @@ struct runtime : runtime_data {
     void find_hash_function(
         const std::deque<rt_class>& classes, hash_function& hash,
         metrics_t& metrics);
-    void print(const dispatch_stats_t& stats) const;
+    void print(const dispatch_stats_t& stats);
     static std::vector<const rt_spec*>
     best(std::vector<const rt_spec*>& candidates);
     static bool is_more_specific(const rt_spec* a, const rt_spec* b);
     static bool is_base(const rt_spec* a, const rt_spec* b);
+
+    size_t indentation_level;
+
+    static constexpr bool trace =
+        std::is_base_of_v<policy::runtime_trace, Policy>;
+
+    runtime& operator++() {
+        if constexpr (trace) {
+            auto p = Policy::runtime_trace::os;
+            if (Policy::runtime_trace::os) {
+                for (int i = 0; i < indentation_level; ++i) {
+                    *Policy::runtime_trace::os << "  ";
+                }
+            }
+        }
+
+        return *this;
+    }
+
+    template<typename T>
+    runtime& operator<<(T&& value) {
+        if constexpr (trace) {
+            if (Policy::runtime_trace::os) {
+                *Policy::runtime_trace::os << value;
+            }
+        }
+        return *this;
+    }
+
+    struct indent {
+        runtime& rt;
+        int by;
+
+        explicit indent(runtime& rt, int by = 2) : rt(rt), by(by) {
+            rt.indentation_level += by;
+        }
+
+        ~indent() {
+            rt.indentation_level -= by;
+        }
+    };
 };
 
 template<class Policy>
@@ -195,7 +220,7 @@ void runtime<Policy>::update() {
     install_gv();
     optimize();
     print(metrics);
-    ++trace << "Finished\n";
+    ++*this << "Finished\n";
 }
 
 template<class Policy>
@@ -212,19 +237,19 @@ template<class Policy>
 void runtime<Policy>::augment_classes() {
     // scope
     {
-        ++trace << "Static class info:\n";
+        ++*this << "Static class info:\n";
 
         // The standard does not guarantee that there is exactly one type_info
         // object per class. However, it guarantees that the type_index for a
         // class has a unique value.
         for (auto& cr : Policy::catalog.classes) {
-            if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
+            if constexpr (trace) {
                 {
-                    with_indent YOMM2_GENSYM(trace);
-                    ++trace << cr.ti << " " << cr.name() << " "
+                    indent YOMM2_GENSYM(*this);
+                    ++*this << cr.ti << " " << cr.name() << " "
                             << range{cr.first_base, cr.last_base};
 
-                    ++trace << "\n";
+                    ++*this << "\n";
                 }
             }
 
@@ -331,16 +356,16 @@ void runtime<Policy>::augment_classes() {
         calculate_conforming_classes(rtc);
     }
 
-    if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
-        ++trace << "Inheritance:\n";
+    if constexpr (trace) {
+        ++*this << "Inheritance:\n";
         for (auto& rtc : classes) {
-            with_indent YOMM2_GENSYM(trace);
-            ++trace << rtc.name() << "\n";
+            indent YOMM2_GENSYM(*this);
+            ++*this << rtc.name() << "\n";
             {
-                with_indent YOMM2_GENSYM(trace);
-                ++trace << "bases:      " << rtc.direct_bases << "\n";
-                ++trace << "derived:    " << rtc.direct_derived << "\n";
-                ++trace << "covariant_classes: " << rtc.covariant_classes
+                indent YOMM2_GENSYM(*this);
+                ++*this << "bases:      " << rtc.direct_bases << "\n";
+                ++*this << "derived:    " << rtc.direct_derived << "\n";
+                ++*this << "covariant_classes: " << rtc.covariant_classes
                         << "\n";
             }
         }
@@ -371,19 +396,19 @@ template<class Policy>
 void runtime<Policy>::augment_methods() {
     methods.resize(Policy::catalog.methods.size());
 
-    ++trace << "Methods:\n";
-    with_indent YOMM2_GENSYM(trace);
+    ++*this << "Methods:\n";
+    indent YOMM2_GENSYM(*this);
 
     auto meth_iter = methods.rbegin();
     // reverse the registration order reversed by 'chain'.
 
     for (auto& meth_info : Policy::catalog.methods) {
-        if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
-            ++trace << meth_info.name << " "
+        if constexpr (trace) {
+            ++*this << meth_info.name << " "
                     << range{meth_info.vp_begin, meth_info.vp_end} << "\n";
         }
 
-        with_indent YOMM2_GENSYM(trace);
+        indent YOMM2_GENSYM(*this);
 
         meth_iter->info = &meth_info;
         meth_iter->vp.reserve(meth_info.arity());
@@ -392,7 +417,7 @@ void runtime<Policy>::augment_methods() {
         for (auto ti : range{meth_info.vp_begin, meth_info.vp_end}) {
             auto rt_class = class_map[std::type_index(*ti)];
             if (!rt_class) {
-                ++trace << "unkown class " << ti << "(" << ti->name()
+                ++*this << "unkown class " << ti << "(" << ti->name()
                         << ") for parameter #" << (param_index + 1) << "\n";
                 unknown_class_error error;
                 error.ti = ti;
@@ -408,7 +433,7 @@ void runtime<Policy>::augment_methods() {
         // reverse the reversed order from 'chain'
 
         for (auto& definition_info : meth_info.specs) {
-            ++trace << definition_info.name << " (" << definition_info.pf
+            ++*this << definition_info.name << " (" << definition_info.pf
                     << ")\n";
             spec_iter->info = &definition_info;
             spec_iter->vp.reserve(meth_info.arity());
@@ -416,10 +441,10 @@ void runtime<Policy>::augment_methods() {
 
             for (auto ti :
                  range{definition_info.vp_begin, definition_info.vp_end}) {
-                with_indent YOMM2_GENSYM(trace);
+                indent YOMM2_GENSYM(*this);
                 auto rt_class = class_map[std::type_index(*ti)];
                 if (!rt_class) {
-                    ++trace << "error for *virtual* parameter #"
+                    ++*this << "error for *virtual* parameter #"
                             << (param_index + 1) << "\n";
                     unknown_class_error error;
                     error.ti = ti;
@@ -446,7 +471,7 @@ void runtime<Policy>::augment_methods() {
 
 template<class Policy>
 std::vector<rt_class*> runtime<Policy>::layer_classes() {
-    ++trace << "Layering classes...\n";
+    ++*this << "Layering classes...\n";
 
     std::vector<rt_class*> input;
     input.reserve(classes.size());
@@ -458,8 +483,8 @@ std::vector<rt_class*> runtime<Policy>::layer_classes() {
     layered.reserve(classes.size());
 
     for (int layer = 1; !input.empty(); ++layer) {
-        with_indent YOMM2_GENSYM(trace, 1);
-        ++trace;
+        indent YOMM2_GENSYM(*this, 1);
+        ++*this;
 
         for (auto class_iter = input.begin(); class_iter != input.end();) {
             auto seen_all_bases = true;
@@ -482,8 +507,8 @@ std::vector<rt_class*> runtime<Policy>::layer_classes() {
                 layered.push_back(*class_iter);
                 (*class_iter)->layer = layer;
 
-                if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
-                    trace << " " << (*class_iter)->name();
+                if constexpr (trace) {
+                    *this << " " << (*class_iter)->name();
                 }
 
                 class_iter = input.erase(class_iter);
@@ -491,7 +516,7 @@ std::vector<rt_class*> runtime<Policy>::layer_classes() {
                 ++class_iter;
             }
         }
-        trace << "\n";
+        *this << "\n";
     }
 
     return std::move(layered);
@@ -501,17 +526,17 @@ template<class Policy>
 void runtime<Policy>::allocate_slots() {
     auto layered = layer_classes();
 
-    ++trace << "Allocating slots...\n";
-    with_indent YOMM2_GENSYM(trace);
+    ++*this << "Allocating slots...\n";
+    indent YOMM2_GENSYM(*this);
 
     for (auto cls : layered) {
         for (const auto& mp : cls->used_by_vp) {
             size_t slot = cls->next_slot++;
 
-            ++trace << mp.method->info->name << "#" << mp.param << ": slot "
+            ++*this << mp.method->info->name << "#" << mp.param << ": slot "
                     << slot << "\n";
-            with_indent YOMM2_GENSYM(trace);
-            ++trace << cls->name();
+            indent YOMM2_GENSYM(*this);
+            ++*this << cls->name();
 
             if (mp.method->slots.size() <= mp.param) {
                 mp.method->slots.resize(mp.param + 1);
@@ -529,7 +554,7 @@ void runtime<Policy>::allocate_slots() {
                 allocate_slot_down(derived, slot);
             }
 
-            ++trace << "\n";
+            ++*this << "\n";
         }
     }
 
@@ -546,7 +571,7 @@ void runtime<Policy>::allocate_slot_down(rt_class* cls, size_t slot) {
 
     cls->mark = class_visit;
 
-    trace << " " << cls->name();
+    *this << " " << cls->name();
 
     assert(slot >= cls->next_slot);
 
@@ -573,7 +598,7 @@ void runtime<Policy>::allocate_slot_up(rt_class* cls, size_t slot) {
 
     cls->mark = class_visit;
 
-    trace << " " << cls->name();
+    *this << " " << cls->name();
 
     assert(slot >= cls->next_slot);
     cls->next_slot = slot + 1;
@@ -594,8 +619,8 @@ void runtime<Policy>::allocate_slot_up(rt_class* cls, size_t slot) {
 template<class Policy>
 void runtime<Policy>::build_dispatch_tables() {
     for (auto& m : methods) {
-        ++trace << "Building dispatch table for " << m.info->name << "\n";
-        with_indent YOMM2_GENSYM(trace);
+        ++*this << "Building dispatch table for " << m.info->name << "\n";
+        indent YOMM2_GENSYM(*this);
 
         auto dims = m.arity();
 
@@ -607,24 +632,24 @@ void runtime<Policy>::build_dispatch_tables() {
 
             for (auto vp : m.vp) {
                 auto& dim_group = groups[dim];
-                ++trace << "make groups for param #" << dim << ", class "
+                ++*this << "make groups for param #" << dim << ", class "
                         << vp->name() << "\n";
-                with_indent YOMM2_GENSYM(trace);
+                indent YOMM2_GENSYM(*this);
 
                 for (auto covariant_classes : vp->covariant_classes) {
-                    ++trace << "specs applicable to "
+                    ++*this << "specs applicable to "
                             << covariant_classes->name() << "\n";
                     bitvec mask;
                     mask.resize(m.specs.size());
 
                     size_t spec_index = 0;
-                    with_indent YOMM2_GENSYM(trace);
+                    indent YOMM2_GENSYM(*this);
 
                     for (auto& spec : m.specs) {
                         if (spec.vp[dim]->covariant_classes.find(
                                 covariant_classes) !=
                             spec.vp[dim]->covariant_classes.end()) {
-                            ++trace << spec.info->name << "\n";
+                            ++*this << spec.info->name << "\n";
                             mask[spec_index] = 1;
                         }
                         ++spec_index;
@@ -635,7 +660,7 @@ void runtime<Policy>::build_dispatch_tables() {
                     group.has_concrete_classes = group.has_concrete_classes ||
                         !covariant_classes->is_abstract;
 
-                    ++trace << "-> mask: " << mask << "\n";
+                    ++*this << "-> mask: " << mask << "\n";
                 }
 
                 ++dim;
@@ -648,27 +673,27 @@ void runtime<Policy>::build_dispatch_tables() {
 
             for (size_t dim = 1; dim < m.arity(); ++dim) {
                 stride *= groups[dim - 1].size();
-                ++trace << "    stride for dim " << dim << " = " << stride
+                ++*this << "    stride for dim " << dim << " = " << stride
                         << "\n";
                 m.strides.push_back(stride);
             }
         }
 
         for (size_t dim = 0; dim < m.arity(); ++dim) {
-            ++trace << "groups for dim " << dim << ":\n";
-            with_indent YOMM2_GENSYM(trace);
+            ++*this << "groups for dim " << dim << ":\n";
+            indent YOMM2_GENSYM(*this);
             size_t group_num = 0;
             for (auto& [mask, group] : groups[dim]) {
                 for (auto cls : group.classes) {
                     cls->mtbl[m.slots[dim]] = group_num;
                 }
-                if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
-                    ++trace << "group " << dim << "/" << group_num << " mask "
+                if constexpr (trace) {
+                    ++*this << "group " << dim << "/" << group_num << " mask "
                             << mask << "\n";
-                    with_indent YOMM2_GENSYM(trace);
+                    indent YOMM2_GENSYM(*this);
                     for (auto cls :
                          range{group.classes.begin(), group.classes.end()}) {
-                        ++trace << tip{cls->ti_ptrs[0]} << "\n";
+                        ++*this << tip{cls->ti_ptrs[0]} << "\n";
                     }
                 }
                 ++group_num;
@@ -676,19 +701,19 @@ void runtime<Policy>::build_dispatch_tables() {
         }
 
         {
-            ++trace << "assigning specs\n";
+            ++*this << "assigning specs\n";
             bitvec all(m.specs.size());
             all = ~all;
             build_dispatch_table(m, dims - 1, groups.end() - 1, all, false);
 
             if (m.arity() > 1) {
-                with_indent YOMM2_GENSYM(trace);
+                indent YOMM2_GENSYM(*this);
                 m.stats.cells = 1;
-                ++trace << "dispatch table rank: ";
+                ++*this << "dispatch table rank: ";
                 const char* prefix = "";
                 for (const auto& dim_groups : groups) {
                     m.stats.cells *= dim_groups.size();
-                    trace << prefix << dim_groups.size();
+                    *this << prefix << dim_groups.size();
                     prefix = " x ";
                 }
 
@@ -701,15 +726,15 @@ void runtime<Policy>::build_dispatch_tables() {
                             return group.second.has_concrete_classes;
                         });
                     m.stats.concrete_cells *= cells;
-                    trace << prefix << cells;
+                    *this << prefix << cells;
                     prefix = " x ";
                 }
-                trace << "\n";
+                *this << "\n";
             }
 
             print(m.stats);
             metrics.accumulate(m.stats);
-            ++trace << "assigning next\n";
+            ++*this << "assigning next\n";
 
             std::vector<const rt_spec*> specs;
             std::transform(
@@ -717,8 +742,8 @@ void runtime<Policy>::build_dispatch_tables() {
                 [](const rt_spec& spec) { return &spec; });
 
             for (auto& spec : m.specs) {
-                with_indent YOMM2_GENSYM(trace);
-                ++trace << spec.info->name << ":\n";
+                indent YOMM2_GENSYM(*this);
+                ++*this << spec.info->name << ":\n";
                 std::vector<const rt_spec*> candidates;
                 std::copy_if(
                     specs.begin(), specs.end(), std::back_inserter(candidates),
@@ -726,13 +751,13 @@ void runtime<Policy>::build_dispatch_tables() {
                         return is_base(other, &spec);
                     });
 
-                if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
-                    with_indent YOMM2_GENSYM(trace);
-                    ++trace << "for next, select best:\n";
+                if constexpr (trace) {
+                    indent YOMM2_GENSYM(*this);
+                    ++*this << "for next, select best:\n";
 
                     for (auto& candidate : candidates) {
-                        with_indent YOMM2_GENSYM(trace);
-                        ++trace << candidate->info->name << "\n";
+                        indent YOMM2_GENSYM(*this);
+                        ++*this << candidate->info->name << "\n";
                     }
                 }
 
@@ -742,12 +767,12 @@ void runtime<Policy>::build_dispatch_tables() {
                 if (nexts.size() == 1) {
                     const definition_info* next_info = nexts.front()->info;
                     next = next_info->pf;
-                    ++trace << "-> " << next_info->name << "\n";
+                    ++*this << "-> " << next_info->name << "\n";
                 } else if (nexts.empty()) {
-                    ++trace << "-> none\n";
+                    ++*this << "-> none\n";
                     next = m.info->not_implemented;
                 } else if (nexts.size() > 1) {
-                    ++trace << "->  ambiguous\n";
+                    ++*this << "->  ambiguous\n";
                     next = m.info->ambiguous;
                 }
 
@@ -763,18 +788,18 @@ template<class Policy>
 void runtime<Policy>::build_dispatch_table(
     rt_method& m, size_t dim, std::vector<group_map>::const_iterator group_iter,
     const bitvec& candidates, bool concrete) {
-    with_indent YOMM2_GENSYM(trace);
+    indent YOMM2_GENSYM(*this);
     size_t group_index = 0;
 
     for (const auto& [group_mask, group] : *group_iter) {
         auto mask = candidates & group_mask;
 
-        if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
-            ++trace << "group " << dim << "/" << group_index << " mask " << mask
+        if constexpr (trace) {
+            ++*this << "group " << dim << "/" << group_index << " mask " << mask
                     << "\n";
-            with_indent YOMM2_GENSYM(trace);
+            indent YOMM2_GENSYM(*this);
             for (auto cls : range{group.classes.begin(), group.classes.end()}) {
-                ++trace << tip{cls->ti_ptrs[0]} << "\n";
+                ++*this << tip{cls->ti_ptrs[0]} << "\n";
             }
         }
 
@@ -789,28 +814,28 @@ void runtime<Policy>::build_dispatch_table(
                 ++i;
             }
 
-            if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
-                ++trace << "select best of:\n";
-                with_indent YOMM2_GENSYM(trace);
+            if constexpr (trace) {
+                ++*this << "select best of:\n";
+                indent YOMM2_GENSYM(*this);
 
                 for (auto& app : applicable) {
-                    ++trace << app->info->name << "\n";
+                    ++*this << app->info->name << "\n";
                 }
             }
 
             auto specs = best(applicable);
 
             if (specs.size() > 1) {
-                with_indent YOMM2_GENSYM(trace);
-                ++trace << "ambiguous\n";
+                indent YOMM2_GENSYM(*this);
+                ++*this << "ambiguous\n";
                 m.dispatch_table.push_back(m.info->ambiguous);
                 ++m.stats.ambiguous;
                 if (concrete) {
                     ++m.stats.concrete_ambiguous;
                 }
             } else if (specs.empty()) {
-                with_indent YOMM2_GENSYM(trace);
-                ++trace << "not implemented\n";
+                indent YOMM2_GENSYM(*this);
+                ++*this << "not implemented\n";
                 m.dispatch_table.push_back(m.info->not_implemented);
                 ++m.stats.not_implemented;
                 if (concrete) {
@@ -818,7 +843,7 @@ void runtime<Policy>::build_dispatch_table(
                 }
             } else {
                 m.dispatch_table.push_back(specs[0]->info->pf);
-                ++trace << "-> " << specs[0]->info->name
+                ++*this << "-> " << specs[0]->info->name
                         << " pf = " << specs[0]->info->pf << "\n";
             }
         } else {
@@ -844,7 +869,7 @@ void runtime<Policy>::find_hash_function(
 
     const auto N = keys.size();
 
-    ++trace << "Finding hash factor for " << N << " ti*\n";
+    ++*this << "Finding hash factor for " << N << " ti*\n";
 
     std::default_random_engine rnd(13081963);
     size_t total_attempts = 0;
@@ -861,7 +886,7 @@ void runtime<Policy>::find_hash_function(
         hash.shift = 8 * sizeof(std::uintptr_t) - M;
         auto hash_size = 1 << M;
 
-        ++trace << "trying with M = " << M << ", " << hash_size << " buckets\n";
+        ++*this << "trying with M = " << M << ", " << hash_size << " buckets\n";
 
         bool found = false;
         size_t attempts = 0;
@@ -891,7 +916,7 @@ void runtime<Policy>::find_hash_function(
         metrics.hash_table_size = hash_size;
 
         if (found) {
-            ++trace << "found " << hash.mult << " after " << total_attempts
+            ++*this << "found " << hash.mult << " after " << total_attempts
                     << " attempts and "
                     << metrics.hash_search_time.count() * 1000 << " msecs\n";
             return;
@@ -913,18 +938,6 @@ void runtime<Policy>::find_hash_function(
 namespace yorel {
 namespace yomm2 {
 namespace detail {
-
-template<unsigned Flags>
-inline trace_type<Flags>& trace_type<Flags>::operator++() {
-    if constexpr (bool(trace_enabled & Flags)) {
-        if (trace_flags & Flags) {
-            for (size_t n = indent; n--;)
-                *logs << " ";
-        }
-    }
-
-    return *this;
-}
 
 inline void dispatch_stats_t::accumulate(const dispatch_stats_t& other) {
     cells += other.cells;
@@ -955,17 +968,17 @@ void runtime<Policy>::install_gv() {
     for (size_t pass = 0; pass != 2; ++pass) {
         Policy::context.gv.resize(0);
 
-        if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
+        if constexpr (trace) {
             if (pass) {
-                ++trace << "Initializing global vector at "
+                ++*this << "Initializing global vector at "
                         << Policy::context.gv.data() << "\n";
             }
         }
 
         for (auto& m : methods) {
-            if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
+            if constexpr (trace) {
                 if (pass) {
-                    ++trace << std::setw(4) << Policy::context.gv.size() << ' '
+                    ++*this << std::setw(4) << Policy::context.gv.size() << ' '
                             << m.info->name << "\n";
                 }
             }
@@ -988,9 +1001,9 @@ void runtime<Policy>::install_gv() {
                 *offsets_iter++ = *stride_iter++;
             }
 
-            if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
+            if constexpr (trace) {
                 if (pass) {
-                    ++trace << std::setw(4) << Policy::context.gv.size() << ' '
+                    ++*this << std::setw(4) << Policy::context.gv.size() << ' '
                             << m.info->name << " dispatch table\n";
                 }
             }
@@ -1012,9 +1025,9 @@ void runtime<Policy>::install_gv() {
                 *cls.method_table = Policy::context.gv.data() +
                     Policy::context.gv.size() - cls.first_used_slot;
             }
-            if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
+            if constexpr (trace) {
                 if (pass) {
-                    ++trace << std::setw(4) << Policy::context.gv.size()
+                    ++*this << std::setw(4) << Policy::context.gv.size()
                             << " mtbl for " << cls.name() << ": "
                             << *cls.method_table << "\n";
                 }
@@ -1037,21 +1050,21 @@ void runtime<Policy>::install_gv() {
         }
     }
 
-    ++trace << std::setw(4) << Policy::context.gv.size() << " end\n";
+    ++*this << std::setw(4) << Policy::context.gv.size() << " end\n";
 }
 
 template<class Policy>
 void runtime<Policy>::optimize() {
-    ++trace << "Optimizing\n";
+    ++*this << "Optimizing\n";
 
     for (auto& m : methods) {
-        ++trace << "  " << m.info->name << "\n";
+        ++*this << "  " << m.info->name << "\n";
         auto slot = m.slots[0];
         if (m.arity() == 1) {
             for (auto cls : m.vp[0]->covariant_classes) {
                 auto pf = m.dispatch_table[(*cls->method_table)[slot].i];
-                if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
-                    ++trace << cls->name() << " mtbl[" << slot << "] = " << pf
+                if constexpr (trace) {
+                    ++*this << cls->name() << " mtbl[" << slot << "] = " << pf
                             << " (function)"
                             << "\n";
                 }
@@ -1061,8 +1074,8 @@ void runtime<Policy>::optimize() {
             for (auto cls : m.vp[0]->covariant_classes) {
                 auto pw = m.gv_dispatch_table + (*cls->method_table)[slot].i;
 
-                if constexpr (bool(trace_enabled & TRACE_RUNTIME)) {
-                    ++trace << "    " << cls->name() << " mtbl[" << slot
+                if constexpr (trace) {
+                    ++*this << "    " << cls->name() << " mtbl[" << slot
                             << "] = gv+" << (pw - Policy::context.gv.data())
                             << "\n";
                 }
@@ -1143,19 +1156,19 @@ bool runtime<Policy>::is_base(const rt_spec* a, const rt_spec* b) {
 }
 
 template<class Policy>
-void runtime<Policy>::print(const dispatch_stats_t& stats) const {
-    ++trace;
+void runtime<Policy>::print(const dispatch_stats_t& stats) {
+    ++*this;
     if (stats.cells) {
         // only for multi-methods, uni-methods don't have dispatch tables
-        ++trace << stats.cells << " dispatch table cells, ";
+        ++*this << stats.cells << " dispatch table cells, ";
     }
-    trace << stats.not_implemented << " not implemented, ";
-    trace << stats.ambiguous << " ambiguities, concrete only: ";
+    *this << stats.not_implemented << " not implemented, ";
+    *this << stats.ambiguous << " ambiguities, concrete only: ";
     if (stats.cells) {
-        trace << stats.concrete_cells << ", ";
+        *this << stats.concrete_cells << ", ";
     }
-    trace << stats.concrete_not_implemented << ", ";
-    trace << stats.concrete_ambiguous << "\n";
+    *this << stats.concrete_not_implemented << ", ";
+    *this << stats.concrete_ambiguous << "\n";
 }
 
 } // namespace detail

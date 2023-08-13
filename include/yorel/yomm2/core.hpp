@@ -59,35 +59,6 @@ namespace policy {
 
 struct abstract_policy {
     static constexpr bool use_indirect_method_pointers = false;
-    static constexpr bool enable_runtime_checks = false;
-    static constexpr bool runtime_checks = false;
-};
-
-template<class Policy>
-struct with_scope : virtual abstract_policy {
-    static struct context context;
-    static struct catalog catalog;
-};
-
-template<class Policy>
-struct with_method_tables : virtual abstract_policy {
-    template<class Class>
-    static detail::mptr_type method_table;
-    template<class Class>
-    static detail::mptr_type* indirect_method_table;
-};
-
-template<class Policy>
-template<class Class>
-detail::mptr_type with_method_tables<Policy>::method_table;
-
-template<class Policy>
-template<class Class>
-detail::mptr_type* with_method_tables<Policy>::indirect_method_table =
-    &with_method_tables<Policy>::method_table<Class>;
-
-struct basic_policy : with_scope<basic_policy>,
-                      with_method_tables<basic_policy> {
 #ifdef NDEBUG
     static constexpr bool enable_runtime_checks = false;
     static constexpr bool runtime_checks = false;
@@ -97,7 +68,52 @@ struct basic_policy : with_scope<basic_policy>,
 #endif
 };
 
-struct yOMM2_API library_policy : basic_policy {
+struct yOMM2_API runtime_trace : virtual abstract_policy {
+    static std::ostream* os;
+};
+
+struct yOMM2_API call_trace : virtual abstract_policy {
+    static std::ostream* os;
+};
+
+#if !defined(YOMM2_SHARED)
+inline std::ostream* runtime_trace::os;
+inline std::ostream* call_trace::os;
+#endif
+
+template<class Policy>
+struct scope : virtual abstract_policy {
+    static struct context context;
+    static struct catalog catalog;
+};
+
+template<class Policy>
+struct method_tables : virtual abstract_policy {
+    template<class Class>
+    static detail::mptr_type method_table;
+    template<class Class>
+    static detail::mptr_type* indirect_method_table;
+};
+
+template<class Policy>
+template<class Class>
+detail::mptr_type method_tables<Policy>::method_table;
+
+template<class Policy>
+template<class Class>
+detail::mptr_type* method_tables<Policy>::indirect_method_table =
+    &method_tables<Policy>::method_table<Class>;
+
+// clang-format off
+struct basic_policy : scope<basic_policy>, method_tables<basic_policy>
+#ifndef NDEBUG
+    , runtime_trace
+#endif
+{
+};
+// clang-format on
+
+struct yOMM2_API library_policy : runtime_trace {
     static constexpr bool enable_runtime_checks = true;
     static struct context context;
     static struct catalog catalog;
@@ -218,11 +234,6 @@ struct context {
 };
 
 struct catalog {
-    catalog& add(detail::class_info& cls) {
-        classes.push_front(cls);
-        return *this;
-    }
-
     detail::static_chain<detail::class_info> classes;
     detail::static_chain<detail::method_info> methods;
 };
@@ -660,8 +671,10 @@ method<Key, R(A...), Policy>::resolve(
     detail::resolver_type<ArgType>... args) const {
     using namespace detail;
 
-    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-        call_trace << "call " << this->name << "\n";
+    if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+        if (Policy::call_trace::os) {
+            *Policy::call_trace::os << "call " << this->name << "\n";
+        }
     }
 
     void* pf;
@@ -672,7 +685,11 @@ method<Key, R(A...), Policy>::resolve(
         pf = resolve_multi_first<0, ArgType...>(args...);
     }
 
-    call_trace << " pf = " << pf << "\n";
+    if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+        if (Policy::call_trace::os) {
+            *Policy::call_trace::os << " pf = " << pf << "\n";
+        }
+    }
 
     return reinterpret_cast<function_pointer_type>(pf);
 }
@@ -696,15 +713,19 @@ inline const detail::word* method<Key, R(A...), Policy>::get_mptr(
     } else {
         auto key = virtual_traits<ArgType>::key(arg);
 
-        if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-            call_trace << "  key = " << key;
+        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+            if (Policy::call_trace::os) {
+                *Policy::call_trace::os << "  key = " << key;
+            }
         }
 
         mptr = Policy::context.mptrs[Policy::context.hash(key)];
     }
 
-    if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-        call_trace << " mptr = " << mptr;
+    if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+        if (Policy::call_trace::os) {
+            *Policy::call_trace::os << " mptr = " << mptr;
+        }
     }
 
     return mptr;
@@ -720,7 +741,13 @@ inline void* method<Key, R(A...), Policy>::resolve_uni(
 
     if constexpr (is_virtual<ArgType>::value) {
         const word* mptr = get_mptr<ArgType>(arg);
-        call_trace << " slot = " << this->slots_strides[0];
+
+        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+            if (Policy::call_trace::os) {
+                *Policy::call_trace::os << " slot = " << this->slots_strides[0];
+            }
+        }
+
         return mptr[this->slots_strides[0]].pf;
     } else {
         return resolve_uni<MoreArgTypes...>(more_args...);
@@ -745,8 +772,10 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_first(
 
         auto slot = slots_strides[0];
 
-        if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-            call_trace << " slot = " << slot;
+        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+            if (Policy::call_trace::os) {
+                *Policy::call_trace::os << " slot = " << slot;
+            }
         }
 
         // The first virtual parameter is special.  Since its stride is
@@ -755,8 +784,11 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_first(
         // already resolved to the appropriate group.
         auto dispatch = mptr[slot].pw;
 
-        if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-            call_trace << " dispatch = " << dispatch << "\n    ";
+        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+            if (Policy::call_trace::os) {
+                *Policy::call_trace::os << " dispatch = " << dispatch
+                                        << "\n    ";
+            }
         }
 
         return resolve_multi_next<1, MoreArgTypes...>(dispatch, more_args...);
@@ -784,20 +816,27 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_next(
 
         auto slot = this->slots_strides[2 * VirtualArg - 1];
 
-        if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-            call_trace << " slot = " << slot;
+        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+            if (Policy::call_trace::os) {
+                *Policy::call_trace::os << " slot = " << slot;
+            }
         }
 
         auto stride = this->slots_strides[2 * VirtualArg];
 
-        if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-            call_trace << " stride = " << stride;
+        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+            if (Policy::call_trace::os) {
+                *Policy::call_trace::os << " stride = " << stride;
+            }
         }
 
         dispatch = dispatch + mptr[slot].i * stride;
 
-        if constexpr (bool(trace_enabled & TRACE_CALLS)) {
-            call_trace << " dispatch = " << dispatch << "\n    ";
+        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+            if (Policy::call_trace::os) {
+                *Policy::call_trace::os << " dispatch = " << dispatch
+                                        << "\n    ";
+            }
         }
     }
 
@@ -877,10 +916,10 @@ virtual_ptr_aux<Class, Policy, Box>::dynamic_method_table(Other& obj) {
 namespace policy {
 
 template<class Policy>
-catalog with_scope<Policy>::catalog;
+catalog scope<Policy>::catalog;
 
 template<class Policy>
-context with_scope<Policy>::context;
+context scope<Policy>::context;
 
 } // namespace policy
 

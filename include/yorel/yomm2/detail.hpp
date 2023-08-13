@@ -88,24 +88,6 @@ constexpr unsigned trace_enabled = TRACE_RUNTIME;
 constexpr unsigned trace_enabled = 0;
 #endif
 
-template<unsigned Flags>
-struct trace_type {
-    trace_type& operator++();
-    int indent{0};
-};
-
-inline trace_type<TRACE_CALLS> call_trace;
-
-template<typename T, unsigned Flags>
-inline trace_type<Flags>& operator<<(trace_type<Flags>& trace, T&& value) {
-    if constexpr (bool(trace_enabled & Flags)) {
-        if (trace_flags & Flags) {
-            *logs << value;
-        }
-    }
-    return trace;
-}
-
 inline word make_word(size_t i) {
     word w;
     w.i = i;
