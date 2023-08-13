@@ -877,10 +877,10 @@ virtual_ptr_aux<Class, Policy, Box>::dynamic_method_table(Other& obj) {
 namespace policy {
 
 template<class Policy>
-catalog yOMM2_API with_scope<Policy>::catalog;
+catalog with_scope<Policy>::catalog;
 
 template<class Policy>
-context yOMM2_API with_scope<Policy>::context;
+context with_scope<Policy>::context;
 
 } // namespace policy
 
