@@ -283,6 +283,8 @@ struct method<Key, R(A...), Policy> : detail::method_info {
     template<typename ArgType>
     const detail::word* get_mptr(detail::resolver_type<ArgType> arg) const;
 
+    static constexpr bool trace = std::is_base_of_v<policy::call_trace, Policy>;
+
     template<typename ArgType, typename... MoreArgTypes>
     void* resolve_uni(
         detail::resolver_type<ArgType> arg,
@@ -671,7 +673,7 @@ method<Key, R(A...), Policy>::resolve(
     detail::resolver_type<ArgType>... args) const {
     using namespace detail;
 
-    if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+    if constexpr (trace) {
         if (Policy::call_trace::os) {
             *Policy::call_trace::os << "call " << this->name << "\n";
         }
@@ -685,7 +687,7 @@ method<Key, R(A...), Policy>::resolve(
         pf = resolve_multi_first<0, ArgType...>(args...);
     }
 
-    if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+    if constexpr (trace) {
         if (Policy::call_trace::os) {
             *Policy::call_trace::os << " pf = " << pf << "\n";
         }
@@ -713,7 +715,7 @@ inline const detail::word* method<Key, R(A...), Policy>::get_mptr(
     } else {
         auto key = virtual_traits<ArgType>::key(arg);
 
-        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+        if constexpr (trace) {
             if (Policy::call_trace::os) {
                 *Policy::call_trace::os << "  key = " << key;
             }
@@ -722,7 +724,7 @@ inline const detail::word* method<Key, R(A...), Policy>::get_mptr(
         mptr = Policy::context.mptrs[Policy::context.hash(key)];
     }
 
-    if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+    if constexpr (trace) {
         if (Policy::call_trace::os) {
             *Policy::call_trace::os << " mptr = " << mptr;
         }
@@ -742,7 +744,7 @@ inline void* method<Key, R(A...), Policy>::resolve_uni(
     if constexpr (is_virtual<ArgType>::value) {
         const word* mptr = get_mptr<ArgType>(arg);
 
-        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+        if constexpr (trace) {
             if (Policy::call_trace::os) {
                 *Policy::call_trace::os << " slot = " << this->slots_strides[0];
             }
@@ -772,7 +774,7 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_first(
 
         auto slot = slots_strides[0];
 
-        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+        if constexpr (trace) {
             if (Policy::call_trace::os) {
                 *Policy::call_trace::os << " slot = " << slot;
             }
@@ -784,7 +786,7 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_first(
         // already resolved to the appropriate group.
         auto dispatch = mptr[slot].pw;
 
-        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+        if constexpr (trace) {
             if (Policy::call_trace::os) {
                 *Policy::call_trace::os << " dispatch = " << dispatch
                                         << "\n    ";
@@ -816,7 +818,7 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_next(
 
         auto slot = this->slots_strides[2 * VirtualArg - 1];
 
-        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+        if constexpr (trace) {
             if (Policy::call_trace::os) {
                 *Policy::call_trace::os << " slot = " << slot;
             }
@@ -824,7 +826,7 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_next(
 
         auto stride = this->slots_strides[2 * VirtualArg];
 
-        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+        if constexpr (trace) {
             if (Policy::call_trace::os) {
                 *Policy::call_trace::os << " stride = " << stride;
             }
@@ -832,7 +834,7 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_next(
 
         dispatch = dispatch + mptr[slot].i * stride;
 
-        if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+        if constexpr (trace) {
             if (Policy::call_trace::os) {
                 *Policy::call_trace::os << " dispatch = " << dispatch
                                         << "\n    ";

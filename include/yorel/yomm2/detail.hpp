@@ -80,14 +80,6 @@ inline std::ostream* logs;
 inline unsigned trace_flags;
 #endif
 
-#if defined(YOMM2_ENABLE_TRACE)
-constexpr unsigned trace_enabled = YOMM2_ENABLE_TRACE;
-#elif !defined(NDEBUG)
-constexpr unsigned trace_enabled = TRACE_RUNTIME;
-#else
-constexpr unsigned trace_enabled = 0;
-#endif
-
 inline word make_word(size_t i) {
     word w;
     w.i = i;
