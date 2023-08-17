@@ -172,7 +172,7 @@ struct runtime : runtime_data {
         std::is_base_of_v<policy::runtime_trace, Policy>;
 
     struct trace_type {
-        size_t indentation_level;
+        size_t indentation_level{0};
 
         trace_type& operator++() {
             if constexpr (trace_enabled) {
