@@ -137,6 +137,7 @@ jobs:
         run: |
           cd cmake.bld
           $env:YOMM2_TRACE = 1
+          examples/adventure
           ctest --rerun-failed --output-on-failure .
           $global:LASTEXITCODE = 0
   windows-shared:
