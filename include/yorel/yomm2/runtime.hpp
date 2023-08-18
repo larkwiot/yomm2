@@ -10,6 +10,7 @@
 #include <cassert>   // for assert
 #include <chrono>    // for operator-, duration
 #include <cstdint>   // for uintptr_t
+#include <cstdio>
 #include <cstdlib>   // for abort, getenv
 #include <deque>
 #include <iomanip>       // for operator<<, setw
@@ -169,17 +170,16 @@ struct runtime : runtime_data {
     static bool is_base(const rt_spec* a, const rt_spec* b);
 
     static constexpr bool trace_enabled =
-        std::is_base_of_v<policy::runtime_trace, Policy>;
+        std::is_base_of_v<policy::runtime_trace_mixin, Policy>;
 
     struct trace_type {
         size_t indentation_level{0};
 
         trace_type& operator++() {
             if constexpr (trace_enabled) {
-                auto p = Policy::runtime_trace::os;
-                if (Policy::runtime_trace::os) {
+                if (Policy::runtime_trace) {
                     for (int i = 0; i < indentation_level; ++i) {
-                        *Policy::runtime_trace::os << "  ";
+                        *Policy::runtime_trace << "  ";
                     }
                 }
             }
@@ -190,8 +190,8 @@ struct runtime : runtime_data {
         template<typename T>
         trace_type& operator<<(T&& value) {
             if constexpr (trace_enabled) {
-                if (Policy::runtime_trace::os) {
-                    *Policy::runtime_trace::os << value;
+                if (Policy::runtime_trace) {
+                    *Policy::runtime_trace << value;
                 }
             }
             return *this;
@@ -228,17 +228,17 @@ void runtime<Policy>::update() {
 template<class Policy>
 runtime<Policy>::runtime() {
     if constexpr (
-        trace_enabled || std::is_base_of_v<policy::call_trace, Policy>) {
+        trace_enabled || std::is_base_of_v<policy::call_trace_mixin, Policy>) {
         if (auto env_trace = getenv("YOMM2_TRACE")) {
             auto mask = std::atoi(env_trace);
             if constexpr (trace_enabled) {
                 if (mask & 1) {
-                    Policy::runtime_trace::os = &std::cerr;
+                    Policy::runtime_trace = &std::cerr;
                 }
             }
-            if constexpr (std::is_base_of_v<policy::call_trace, Policy>) {
+            if constexpr (std::is_base_of_v<policy::call_trace_mixin, Policy>) {
                 if (mask & 3) {
-                    Policy::call_trace::os = &std::cerr;
+                    Policy::call_trace = &std::cerr;
                 }
             }
         }

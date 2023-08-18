@@ -95,7 +95,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(
     // BOOST_TEST(fight::fn(warrior, axe, bear) == "kill bear");
 }
 
-#ifndef NDEBUG
 namespace bad_intrusive_mptr {
 
 struct Animal : root<Animal> {
@@ -105,7 +104,7 @@ struct Animal : root<Animal> {
 
 struct Dog : Animal {};
 
-using test_policy = test_policy_<__COUNTER__>;
+using test_policy = test_policy_<__COUNTER__, policy::debug_policy>;
 
 register_classes(test_policy, Animal, Dog);
 
@@ -137,4 +136,3 @@ BOOST_AUTO_TEST_CASE(test_bad_intrusive_mptr) {
     set_error_handler(prev_handler);
 }
 } // namespace bad_intrusive_mptr
-#endif

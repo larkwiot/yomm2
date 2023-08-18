@@ -1,7 +1,9 @@
 #ifndef YOREL_YOMM2_CORE_INCLUDED
 #define YOREL_YOMM2_CORE_INCLUDED
 
+#include <charconv>
 #include <chrono>
+#include <stdio.h>
 #include <iostream>
 #include <memory>
 #include <string_view>
@@ -59,21 +61,20 @@ namespace policy {
 
 struct abstract_policy {
     static constexpr bool use_indirect_method_pointers = false;
-#ifdef NDEBUG
     static constexpr bool enable_runtime_checks = false;
     static constexpr bool runtime_checks = false;
-#else
-    static constexpr bool enable_runtime_checks = true;
+};
+
+struct yOMM2_API runtime_checks_mixin : virtual abstract_policy {
     static constexpr bool runtime_checks = true;
-#endif
 };
 
-struct yOMM2_API runtime_trace : virtual abstract_policy {
-    static std::ostream* os;
+struct yOMM2_API runtime_trace_mixin : virtual abstract_policy {
+    static std::ostream* runtime_trace;
 };
 
-struct yOMM2_API call_trace : virtual abstract_policy {
-    static std::ostream* os;
+struct yOMM2_API call_trace_mixin : virtual abstract_policy {
+    static std::ostream* call_trace;
 };
 
 #if !defined(YOMM2_SHARED)
@@ -82,13 +83,13 @@ inline std::ostream* call_trace::os;
 #endif
 
 template<class Policy>
-struct scope : virtual abstract_policy {
+struct scope_mixin : virtual abstract_policy {
     static struct context context;
     static struct catalog catalog;
 };
 
 template<class Policy>
-struct method_tables : virtual abstract_policy {
+struct method_tables_mixin : virtual abstract_policy {
     template<class Class>
     static detail::mptr_type method_table;
     template<class Class>
@@ -97,23 +98,22 @@ struct method_tables : virtual abstract_policy {
 
 template<class Policy>
 template<class Class>
-detail::mptr_type method_tables<Policy>::method_table;
+detail::mptr_type method_tables_mixin<Policy>::method_table;
 
 template<class Policy>
 template<class Class>
-detail::mptr_type* method_tables<Policy>::indirect_method_table =
-    &method_tables<Policy>::method_table<Class>;
+detail::mptr_type* method_tables_mixin<Policy>::indirect_method_table =
+    &method_tables_mixin<Policy>::method_table<Class>;
 
-// clang-format off
-struct basic_policy : scope<basic_policy>, method_tables<basic_policy>
-#ifndef NDEBUG
-    , runtime_trace
-#endif
-{
-};
+struct basic_policy : scope_mixin<basic_policy>,
+                      method_tables_mixin<basic_policy> {};
+
+struct debug_policy : basic_policy, runtime_checks_mixin {};
+using release_policy = basic_policy;
+
 // clang-format on
 
-struct yOMM2_API library_policy : runtime_trace {
+struct yOMM2_API shared_library : runtime_trace_mixin {
     static constexpr bool enable_runtime_checks = true;
     static struct context context;
     static struct catalog catalog;
@@ -124,15 +124,16 @@ struct yOMM2_API library_policy : runtime_trace {
 };
 
 template<class Class>
-detail::mptr_type library_policy::method_table;
+detail::mptr_type shared_library::method_table;
 
 template<class Class>
-detail::mptr_type* library_policy::indirect_method_table =
-    &library_policy::method_table<Class>;
+detail::mptr_type* shared_library::indirect_method_table =
+    &shared_library::method_table<Class>;
+
 } // namespace policy
 
 #if defined(YOMM2_SHARED)
-using default_policy = policy::library_policy;
+using default_policy = policy::shared_library;
 #else
 using default_policy = policy::basic_policy;
 #endif
@@ -283,7 +284,8 @@ struct method<Key, R(A...), Policy> : detail::method_info {
     template<typename ArgType>
     const detail::word* get_mptr(detail::resolver_type<ArgType> arg) const;
 
-    static constexpr bool trace = std::is_base_of_v<policy::call_trace, Policy>;
+    static constexpr bool trace =
+        std::is_base_of_v<policy::call_trace_mixin, Policy>;
 
     template<typename ArgType, typename... MoreArgTypes>
     void* resolve_uni(
@@ -496,7 +498,7 @@ class virtual_ptr_aux {
                 typename detail::virtual_traits<Other&>::polymorphic_type>;
         }
 
-        if constexpr (debug) {
+        if constexpr (Policy::runtime_checks) {
             // check that dynamic type == static type
             auto key = virtual_traits<Other&>::key(obj);
             auto final_key =
@@ -674,8 +676,8 @@ method<Key, R(A...), Policy>::resolve(
     using namespace detail;
 
     if constexpr (trace) {
-        if (Policy::call_trace::os) {
-            *Policy::call_trace::os << "call " << this->name << "\n";
+        if (Policy::call_trace) {
+            *Policy::call_trace << "call " << this->name << "\n";
         }
     }
 
@@ -688,8 +690,8 @@ method<Key, R(A...), Policy>::resolve(
     }
 
     if constexpr (trace) {
-        if (Policy::call_trace::os) {
-            *Policy::call_trace::os << " pf = " << pf << "\n";
+        if (Policy::call_trace) {
+            *Policy::call_trace << " pf = " << pf << "\n";
         }
     }
 
@@ -716,8 +718,8 @@ inline const detail::word* method<Key, R(A...), Policy>::get_mptr(
         auto key = virtual_traits<ArgType>::key(arg);
 
         if constexpr (trace) {
-            if (Policy::call_trace::os) {
-                *Policy::call_trace::os << "  key = " << key;
+            if (Policy::call_trace) {
+                *Policy::call_trace << "  key = " << key;
             }
         }
 
@@ -725,8 +727,8 @@ inline const detail::word* method<Key, R(A...), Policy>::get_mptr(
     }
 
     if constexpr (trace) {
-        if (Policy::call_trace::os) {
-            *Policy::call_trace::os << " mptr = " << mptr;
+        if (Policy::call_trace) {
+            *Policy::call_trace << " mptr = " << mptr;
         }
     }
 
@@ -745,8 +747,8 @@ inline void* method<Key, R(A...), Policy>::resolve_uni(
         const word* mptr = get_mptr<ArgType>(arg);
 
         if constexpr (trace) {
-            if (Policy::call_trace::os) {
-                *Policy::call_trace::os << " slot = " << this->slots_strides[0];
+            if (Policy::call_trace) {
+                *Policy::call_trace << " slot = " << this->slots_strides[0];
             }
         }
 
@@ -775,8 +777,8 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_first(
         auto slot = slots_strides[0];
 
         if constexpr (trace) {
-            if (Policy::call_trace::os) {
-                *Policy::call_trace::os << " slot = " << slot;
+            if (Policy::call_trace) {
+                *Policy::call_trace << " slot = " << slot;
             }
         }
 
@@ -787,9 +789,8 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_first(
         auto dispatch = mptr[slot].pw;
 
         if constexpr (trace) {
-            if (Policy::call_trace::os) {
-                *Policy::call_trace::os << " dispatch = " << dispatch
-                                        << "\n    ";
+            if (Policy::call_trace) {
+                *Policy::call_trace << " dispatch = " << dispatch << "\n    ";
             }
         }
 
@@ -819,25 +820,24 @@ inline void* method<Key, R(A...), Policy>::resolve_multi_next(
         auto slot = this->slots_strides[2 * VirtualArg - 1];
 
         if constexpr (trace) {
-            if (Policy::call_trace::os) {
-                *Policy::call_trace::os << " slot = " << slot;
+            if (Policy::call_trace) {
+                *Policy::call_trace << " slot = " << slot;
             }
         }
 
         auto stride = this->slots_strides[2 * VirtualArg];
 
         if constexpr (trace) {
-            if (Policy::call_trace::os) {
-                *Policy::call_trace::os << " stride = " << stride;
+            if (Policy::call_trace) {
+                *Policy::call_trace << " stride = " << stride;
             }
         }
 
         dispatch = dispatch + mptr[slot].i * stride;
 
         if constexpr (trace) {
-            if (Policy::call_trace::os) {
-                *Policy::call_trace::os << " dispatch = " << dispatch
-                                        << "\n    ";
+            if (Policy::call_trace) {
+                *Policy::call_trace << " dispatch = " << dispatch << "\n    ";
             }
         }
     }
@@ -918,10 +918,10 @@ virtual_ptr_aux<Class, Policy, Box>::dynamic_method_table(Other& obj) {
 namespace policy {
 
 template<class Policy>
-catalog scope<Policy>::catalog;
+catalog scope_mixin<Policy>::catalog;
 
 template<class Policy>
-context scope<Policy>::context;
+context scope_mixin<Policy>::context;
 
 } // namespace policy
 
