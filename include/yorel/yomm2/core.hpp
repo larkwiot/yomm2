@@ -65,14 +65,19 @@ struct abstract_policy {
     static constexpr bool runtime_checks = false;
 };
 
-struct shared_library;
 struct debug;
 struct release;
+struct debug_shared;
+struct release_shared;
 
 } // namespace policy
 
 #if defined(YOMM2_SHARED)
-using default_policy = policy::shared_library;
+    #ifdef NDEBUG
+using default_policy = policy::release_shared;
+    #else
+using default_policy = policy::debug_shared;
+    #endif
 #else
     #ifdef NDEBUG
 using default_policy = policy::release;
@@ -345,23 +350,17 @@ template<typename Container>
 typename method<Key, R(A...), Policy>::next_type
     method<Key, R(A...), Policy>::use_next<Container>::next;
 
-// clang-format off
-
 // -----------------------------------------------------------------------------
 // class_declaration
 
 template<typename Class, typename... Rest>
 struct class_declaration : class_declaration<
-    detail::remove_policy<Class, Rest...>,
-    detail::get_policy<Class, Rest...>
-> {};
+                               detail::remove_policy<Class, Rest...>,
+                               detail::get_policy<Class, Rest...>> {};
 
 template<typename Class, typename... Bases, typename Policy>
-struct class_declaration<detail::types<Class, Bases...>, Policy> : detail::class_info {
-    // Add a class to a catalog.
-    // There is a possibility that the same class is registered with
-    // different bases. This will be caught by augment_classes.
-
+struct class_declaration<detail::types<Class, Bases...>, Policy>
+    : detail::class_info {
     class_declaration() {
         using namespace detail;
 
@@ -379,11 +378,8 @@ struct class_declaration<detail::types<Class, Bases...>, Policy> : detail::class
 };
 
 template<typename Class, typename... Bases>
-struct class_declaration<detail::types<Class, Bases...>> : class_declaration<
-    detail::types<Class, Bases...>, default_policy
-> {};
-
-// clang-format on
+struct class_declaration<detail::types<Class, Bases...>>
+    : class_declaration<detail::types<Class, Bases...>, default_policy> {};
 
 template<typename... T>
 using use_classes = typename detail::use_classes_aux<T...>::type;
@@ -835,10 +831,9 @@ struct debug : basic_policy,
                runtime_trace_mixin<detail::stdostream> {};
 struct release : basic_policy {};
 
-// clang-format on
-
-struct yOMM2_API shared_library {
+struct yOMM2_API abstract_shared {
     static constexpr bool enable_runtime_checks = true;
+    static constexpr bool use_indirect_method_pointers = false;
     static detail::stdostream trace;
     static struct context context;
     static struct catalog catalog;
@@ -848,14 +843,20 @@ struct yOMM2_API shared_library {
     static detail::mptr_type* indirect_method_table;
 };
 
-static_assert(detail::has_trace<shared_library>);
+struct debug_shared : abstract_shared {
+    static constexpr bool runtime_checks = true;
+};
+
+struct release_shared : abstract_shared {
+    static constexpr bool runtime_checks = false;
+};
 
 template<class Class>
-detail::mptr_type shared_library::method_table;
+detail::mptr_type abstract_shared::method_table;
 
 template<class Class>
-detail::mptr_type* shared_library::indirect_method_table =
-    &shared_library::method_table<Class>;
+detail::mptr_type* abstract_shared::indirect_method_table =
+    &abstract_shared::method_table<Class>;
 
 template<class Policy>
 catalog scope_mixin<Policy>::catalog;

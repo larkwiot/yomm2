@@ -20,9 +20,9 @@ namespace yorel {
 namespace yomm2 {
 
 namespace policy {
-yOMM2_API context shared_library::context;
-yOMM2_API catalog shared_library::catalog;
-yOMM2_API detail::stdostream shared_library::trace;
+yOMM2_API context abstract_shared::context;
+yOMM2_API catalog abstract_shared::catalog;
+yOMM2_API detail::stdostream abstract_shared::trace;
 } // namespace policy
 
 template void update<default_policy>();
