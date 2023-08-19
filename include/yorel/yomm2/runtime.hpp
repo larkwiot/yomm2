@@ -11,7 +11,7 @@
 #include <chrono>    // for operator-, duration
 #include <cstdint>   // for uintptr_t
 #include <cstdio>
-#include <cstdlib>   // for abort, getenv
+#include <cstdlib> // for abort, getenv
 #include <deque>
 #include <iomanip>       // for operator<<, setw
 #include <iterator>      // for back_insert_iterator
@@ -120,19 +120,6 @@ inline std::ostream* log_off() {
     return prev;
 }
 
-template<template<typename...> typename Container, typename... T>
-inline std::ostream&
-operator<<(std::ostream& os, Container<rt_class*, T...>& classes) {
-    os << "(";
-    const char* sep = "";
-    for (auto cls : classes) {
-        os << sep << cls->name();
-        sep = ", ";
-    }
-
-    return os << ")";
-}
-
 struct runtime_data {
     std::unordered_map<std::type_index, rt_class*> class_map;
     std::deque<rt_class> classes;
@@ -169,34 +156,99 @@ struct runtime : runtime_data {
     static bool is_more_specific(const rt_spec* a, const rt_spec* b);
     static bool is_base(const rt_spec* a, const rt_spec* b);
 
-    static constexpr bool trace_enabled =
-        std::is_base_of_v<policy::runtime_trace_mixin, Policy>;
+    static constexpr bool trace_enabled = detail::has_trace<Policy>;
 
     struct trace_type {
         size_t indentation_level{0};
 
         trace_type& operator++() {
             if constexpr (trace_enabled) {
-                if (Policy::runtime_trace) {
-                    for (int i = 0; i < indentation_level; ++i) {
-                        *Policy::runtime_trace << "  ";
-                    }
+                for (int i = 0; i < indentation_level; ++i) {
+                    Policy::trace << "  ";
                 }
             }
 
             return *this;
         }
+
+        trace_type& operator<<(const boost::dynamic_bitset<>& bits) {
+            if constexpr (trace_enabled) {
+                auto i = bits.size() - 1;
+                while (true) {
+                    Policy::trace << bits[i];
+                    if (i == 0) {
+                        break;
+                    }
+                    --i;
+                }
+            }
+
+            return *this;
+        }
+
+        // trace_type& operator<<(const char* str) {
+        //     if constexpr (trace_enabled) {
+        //         Policy::trace << str;
+        //     }
+
+        //     return *this;
+        // }
+
+        // trace_type& operator<<(const std::string_view& view) {
+        //     if constexpr (trace_enabled) {
+        //         Policy::trace << view;
+        //     }
+
+        //     return *this;
+        // }
 
         template<typename T>
-        trace_type& operator<<(T&& value) {
+        trace_type& operator<<(const T& value) {
             if constexpr (trace_enabled) {
-                if (Policy::runtime_trace) {
-                    *Policy::runtime_trace << value;
-                }
+                Policy::trace << value;
             }
             return *this;
         }
-    } trace;
+
+        trace_type& operator<<(ti_ptr tip) {
+            if constexpr (trace_enabled) {
+                return *this << tip->name() << "(" << (void*) tip << ")";
+            }
+
+            return *this;
+        }
+
+        trace_type& operator<<(range<const ti_ptr*> tips) {
+            if constexpr (trace_enabled) {
+                *this << "(";
+                const char* sep = "";
+                for (auto t : tips) {
+                    *this << sep << t;
+                    sep = ", ";
+                }
+
+                *this << ")";
+            }
+
+            return *this;
+        }
+
+        template<template<typename...> typename Container, typename... T>
+        trace_type& operator<<(Container<rt_class*, T...>& classes) {
+            if constexpr (trace_enabled) {
+                *this << "(";
+                const char* sep = "";
+                for (auto cls : classes) {
+                    *this << sep << cls->name();
+                    sep = ", ";
+                }
+
+                return *this << ")";
+            }
+        }
+    };
+
+    trace_type trace;
 
     struct indent {
         trace_type& trace;
@@ -227,20 +279,15 @@ void runtime<Policy>::update() {
 
 template<class Policy>
 runtime<Policy>::runtime() {
-    if constexpr (
-        trace_enabled || std::is_base_of_v<policy::call_trace_mixin, Policy>) {
+    if constexpr (trace_enabled) {
+        int enable = 0;
+
         if (auto env_trace = getenv("YOMM2_TRACE")) {
-            auto mask = std::atoi(env_trace);
-            if constexpr (trace_enabled) {
-                if (mask & 1) {
-                    Policy::runtime_trace = &std::cerr;
-                }
-            }
-            if constexpr (std::is_base_of_v<policy::call_trace_mixin, Policy>) {
-                if (mask & 3) {
-                    Policy::call_trace = &std::cerr;
-                }
-            }
+            enable = std::atoi(env_trace);
+        }
+
+        if (!enable) {
+            Policy::trace.off();
         }
     }
 }
@@ -251,9 +298,9 @@ void runtime<Policy>::augment_classes() {
     {
         ++trace << "Static class info:\n";
 
-        // The standard does not guarantee that there is exactly one type_info
-        // object per class. However, it guarantees that the type_index for a
-        // class has a unique value.
+        // The standard does not guarantee that there is exactly one
+        // type_info object per class. However, it guarantees that the
+        // type_index for a class has a unique value.
         for (auto& cr : Policy::catalog.classes) {
             if constexpr (trace_enabled) {
                 {
@@ -275,9 +322,9 @@ void runtime<Policy>::augment_classes() {
 
             // In the unlikely case that a class does have more than one
             // associated  ti*, collect them in a vector. We don't use an
-            // unordered_set because, again, this situation is highly unlikely,
-            // and, were it to occur, the number of distinct ti*s would
-            // probably be small.
+            // unordered_set because, again, this situation is highly
+            // unlikely, and, were it to occur, the number of distinct ti*s
+            // would probably be small.
             if (std::find(rtc->ti_ptrs.begin(), rtc->ti_ptrs.end(), cr.ti) ==
                 rtc->ti_ptrs.end()) {
                 rtc->ti_ptrs.push_back(cr.ti);
@@ -285,8 +332,8 @@ void runtime<Policy>::augment_classes() {
         }
     }
 
-    // All known classes now have exactly one associated rt_class* in the map.
-    // Collect the bases.
+    // All known classes now have exactly one associated rt_class* in the
+    // map. Collect the bases.
 
     for (auto& cr : Policy::catalog.classes) {
         auto& rtc = class_map[std::type_index(*cr.ti)];
@@ -303,8 +350,8 @@ void runtime<Policy>::augment_classes() {
             }
 
             if (rtc != rtb) {
-                // At compile time we collected the class as its own improper
-                // base, as per std::is_base_of. Eliminate that.
+                // At compile time we collected the class as its own
+                // improper base, as per std::is_base_of. Eliminate that.
                 rtc->transitive_bases.push_back(rtb);
             }
         }
@@ -326,24 +373,24 @@ void runtime<Policy>::augment_classes() {
             }
         }
 
-        // Record the "weight" of the class, i.e. the total number of direct and
-        // indirect proper bases it has.
+        // Record the "weight" of the class, i.e. the total number of direct
+        // and indirect proper bases it has.
         rtc.weight = bases.size();
         rtc.transitive_bases.swap(bases);
     }
 
     for (auto& rtc : classes) {
-        // Sort base classes by weight. This ensures that a base class is never
-        // preceded by one if its own bases classes.
+        // Sort base classes by weight. This ensures that a base class is
+        // never preceded by one if its own bases classes.
         std::sort(
             rtc.transitive_bases.begin(), rtc.transitive_bases.end(),
             [](auto a, auto b) { return a->weight > b->weight; });
         mark = ++class_visit;
 
-        // Collect the direct base classes. The first base is certainly a direct
-        // one. Remove *its* bases from the candidates, by marking them.
-        // Continue with the next base that is not marked. It is the next direct
-        // base. And so on...
+        // Collect the direct base classes. The first base is certainly a
+        // direct one. Remove *its* bases from the candidates, by marking
+        // them. Continue with the next base that is not marked. It is the
+        // next direct base. And so on...
 
         for (auto rtb : rtc.transitive_bases) {
             if (rtb->mark == mark) {
@@ -705,7 +752,7 @@ void runtime<Policy>::build_dispatch_tables() {
                     indent YOMM2_GENSYM(trace);
                     for (auto cls :
                          range{group.classes.begin(), group.classes.end()}) {
-                        ++trace << tip{cls->ti_ptrs[0]} << "\n";
+                        ++trace << cls->ti_ptrs[0] << "\n";
                     }
                 }
                 ++group_num;
@@ -811,7 +858,7 @@ void runtime<Policy>::build_dispatch_table(
                     << "\n";
             indent YOMM2_GENSYM(trace);
             for (auto cls : range{group.classes.begin(), group.classes.end()}) {
-                ++trace << tip{cls->ti_ptrs[0]} << "\n";
+                ++trace << cls->ti_ptrs[0] << "\n";
             }
         }
 

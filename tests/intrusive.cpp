@@ -104,7 +104,7 @@ struct Animal : root<Animal> {
 
 struct Dog : Animal {};
 
-using test_policy = test_policy_<__COUNTER__, policy::debug_policy>;
+using test_policy = test_policy_<__COUNTER__, policy::debug>;
 
 register_classes(test_policy, Animal, Dog);
 
