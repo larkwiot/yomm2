@@ -1,10 +1,10 @@
 #ifndef YOREL_YOMM2_CORE_INCLUDED
 #define YOREL_YOMM2_CORE_INCLUDED
 
+#include <array>
 #include <charconv>
 #include <chrono>
 #include <stdio.h>
-#include <iostream>
 #include <memory>
 #include <string_view>
 #include <variant>
