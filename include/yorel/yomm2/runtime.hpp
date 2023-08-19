@@ -173,13 +173,10 @@ struct runtime : runtime_data {
 
         trace_type& operator<<(const boost::dynamic_bitset<>& bits) {
             if constexpr (trace_enabled) {
-                auto i = bits.size() - 1;
-                while (true) {
-                    Policy::trace << bits[i];
-                    if (i == 0) {
-                        break;
-                    }
+                auto i = bits.size();
+                while (i != 0) {
                     --i;
+                    Policy::trace << bits[i];
                 }
             }
 
