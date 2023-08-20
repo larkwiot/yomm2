@@ -10,12 +10,6 @@
 #include <variant>
 #include <vector>
 
-#if defined(YOMM2_ENABLE_TRACE) && (YOMM2_ENABLE_TRACE & 2)
-    #include <iostream>
-#else
-    #include <iosfwd>
-#endif
-
 #include <boost/mp11/algorithm.hpp>
 #include <boost/mp11/bind.hpp>
 
@@ -831,7 +825,7 @@ struct debug : basic_policy,
                runtime_trace_mixin<detail::stdostream> {};
 struct release : basic_policy {};
 
-struct yOMM2_API abstract_shared {
+struct yOMM2_API abstract_shared : abstract_policy {
     static constexpr bool enable_runtime_checks = true;
     static constexpr bool use_indirect_method_pointers = false;
     static detail::stdostream trace;
