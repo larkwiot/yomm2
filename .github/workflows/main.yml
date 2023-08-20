@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        compiler: [g++-10, g++-11, clang++-11, clang++-12]
+        compiler: [g++-11, clang++-12]
         check_abi_compatibility: [OFF, ON]
     steps:
       - uses: actions/checkout@v3
@@ -76,10 +76,11 @@ jobs:
         run: |
           mkdir cmake.bld
           cd cmake.bld
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DYOMM2_SHARED=1
-            -DYOMM2_CHECK_ABI_COMPATIBILITY=${{ matrix.check_abi_compatibility }}
-            -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
-            -DCMAKE_CXX_STANDARD=17
+          >
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DYOMM2_SHARED=1 \
+            -DYOMM2_CHECK_ABI_COMPATIBILITY=${{ matrix.check_abi_compatibility }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} \
+            -DCMAKE_CXX_STANDARD=17 \
             -DYOMM2_ENABLE_TESTS=1 -DYOMM2_ENABLE_BENCHMARKS=1
       - name: Build
         run: VERBOSE=1 cmake --build cmake.bld
@@ -128,29 +129,9 @@ jobs:
         run: |
           mkdir cmake.bld
           cd cmake.bld
-          cmake .. -G "NMake Makefiles" -DYOMM2_SHARED=1 -DCMAKE_BUILD_TYPE=Release
-            -DYOMM2_CHECK_ABI_COMPATIBILITY=${{ matrix.check_abi_compatibility }}
+          cmake .. -G "NMake Makefiles" -DYOMM2_SHARED=1 -DCMAKE_BUILD_TYPE=Release \
+            -DYOMM2_CHECK_ABI_COMPATIBILITY=${{ matrix.check_abi_compatibility }} \
             -DCMAKE_CXX_STANDARD=17 -DYOMM2_ENABLE_TESTS=1
-      - name: Build
-        run: |
-          cd cmake.bld
-          nmake
-      - name: Unit Tests
-        run: |
-          cd cmake.bld
-          $env:YOMM2_TRACE = 1
-          ctest --rerun-failed --output-on-failure .
-          $global:LASTEXITCODE = 0
-  windows-shared-abi:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: ilammy/msvc-dev-cmd@v1
-      - name: Configure
-        run: |
-          mkdir cmake.bld
-          cd cmake.bld
-          cmake .. -G "NMake Makefiles" -DYOMM2_SHARED=1 -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 -DYOMM2_ENABLE_TESTS=1
       - name: Build
         run: |
           cd cmake.bld
