@@ -755,25 +755,35 @@ virtual_ptr_aux<Class, Policy, Box>::dynamic_method_table(Other& obj) {
 
     mptr_type mptr;
 
-    auto dynamic_key = virtual_traits<Other&>::key(obj);
-    auto static_key =
-        &typeid(typename virtual_traits<Other&>::polymorphic_type);
+    if constexpr (std::is_polymorphic_v<Other>) {
+        auto dynamic_key = virtual_traits<Other&>::key(obj);
+        auto static_key =
+            &typeid(typename virtual_traits<Other&>::polymorphic_type);
 
-    if (dynamic_key == static_key) {
+        if (dynamic_key == static_key) {
+            if constexpr (Policy::use_indirect_method_pointers) {
+                mptr = Policy::template indirect_method_table<
+                    typename detail::virtual_traits<Other&>::polymorphic_type>;
+            } else {
+                mptr = Policy::template method_table<
+                    typename detail::virtual_traits<Other&>::polymorphic_type>;
+            }
+        } else {
+            auto index = Policy::context.hash(dynamic_key);
+
+            if constexpr (Policy::use_indirect_method_pointers) {
+                mptr = Policy::context.indirect_mptrs[index];
+            } else {
+                mptr = Policy::context.mptrs[index];
+            }
+        }
+    } else {
         if constexpr (Policy::use_indirect_method_pointers) {
             mptr = Policy::template indirect_method_table<
                 typename detail::virtual_traits<Other&>::polymorphic_type>;
         } else {
             mptr = Policy::template method_table<
                 typename detail::virtual_traits<Other&>::polymorphic_type>;
-        }
-    } else {
-        auto index = Policy::context.hash(dynamic_key);
-
-        if constexpr (Policy::use_indirect_method_pointers) {
-            mptr = Policy::context.indirect_mptrs[index];
-        } else {
-            mptr = Policy::context.mptrs[index];
         }
     }
 
