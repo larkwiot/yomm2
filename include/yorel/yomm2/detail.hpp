@@ -576,6 +576,11 @@ struct argument_traits {
     }
 
     template<typename>
+    static const T& cast(const T& obj) {
+        return obj;
+    }
+
+    template<typename>
     static T&& cast(T&& obj) {
         return obj;
     }
