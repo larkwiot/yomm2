@@ -564,18 +564,23 @@ struct argument_traits {
         return &typeid(arg);
     }
 
-#if 0 // defined(_MSC_VER) && (_MSC_VER / 100) <= 19
-
-    template<typename U>
-    static U& cast(U& obj) {
+#if defined(_MSC_VER)
+    #define ySTRING2(x) #x
+    #define ySTRING(x) ySTRING2(x)
+    #pragma message(ySTRING(_MSC_VER))
+    #if _MSC_VER / 100 <= 19
+    static T cast(T obj) {
         return obj;
     }
 
-    template<typename U>
-    static U&& cast(U&& obj) {
+    static T& cast(T& obj) {
         return obj;
     }
 
+    static T&& cast(T&& obj) {
+        return obj;
+    }
+    #endif
 #else
 
     template<typename U>
