@@ -569,14 +569,17 @@ struct argument_traits {
     #define ySTRING(x) ySTRING2(x)
     #pragma message(ySTRING(_MSC_VER))
     #if _MSC_VER / 100 <= 19
+    template<typename>
     static T cast(T obj) {
         return obj;
     }
 
+    template<typename>
     static T& cast(T& obj) {
         return obj;
     }
 
+    template<typename>
     static T&& cast(T&& obj) {
         return obj;
     }
