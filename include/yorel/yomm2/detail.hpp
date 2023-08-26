@@ -564,7 +564,7 @@ struct argument_traits {
         return &typeid(arg);
     }
 
-#if defined(_MSC_VER) && (_MSC_VER / 100) <= 19
+#if 0 // defined(_MSC_VER) && (_MSC_VER / 100) <= 19
 
     template<typename U>
     static U& cast(U& obj) {
