@@ -566,6 +566,9 @@ struct argument_traits {
 
 #if defined(_MSC_VER)
     #if _MSC_VER / 100 <= 19
+    #define S2(x) #x
+    #define S(x) S2(x)
+    #pragma message(S(_MSC_VER))
 
     template<typename>
     static T& cast(T& obj) {
