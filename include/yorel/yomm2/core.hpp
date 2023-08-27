@@ -415,7 +415,7 @@ class virtual_ptr_aux {
     }
 
     template<class Other>
-    static auto final(Other& obj) {
+    static auto final(Other&& obj) {
         using namespace detail;
 
         mptr_type mptr;
@@ -565,7 +565,7 @@ using virtual_shared_ptr = virtual_ptr<std::shared_ptr<Class>, Policy>;
 
 template<class Class, class Policy = default_policy>
 inline auto make_virtual_shared() {
-    return virtual_shared_ptr<Class, Policy>(std::make_shared<Class>());
+    return virtual_shared_ptr<Class, Policy>::final(std::make_shared<Class>());
 }
 
 // -----------------------------------------------------------------------------
@@ -753,7 +753,10 @@ inline auto
 virtual_ptr_aux<Class, Policy, Box>::dynamic_method_table(Other& obj) {
     using namespace detail;
 
-    static_assert(std::is_polymorphic_v<Other>, "use 'final' if intended");
+    static_assert(
+        std::is_polymorphic_v<
+            typename virtual_traits<Other&>::polymorphic_type>,
+        "use 'final' if intended");
 
     mptr_type mptr;
 
