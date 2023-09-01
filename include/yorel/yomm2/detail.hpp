@@ -564,30 +564,12 @@ struct argument_traits {
         return &typeid(arg);
     }
 
-#if defined(_MSC_VER)
-    #if _MSC_VER / 100 <= 19
-    #define S2(x) #x
-    #define S(x) S2(x)
-    #pragma message(S(_MSC_VER))
+    // template<typename U>
+    // static decltype(auto) cast(U&& obj) {
+    //     return std::forward<U>(obj);
+    // }
 
-    template<typename>
-    static T& cast(T& obj) {
-        return obj;
-    }
-
-    template<typename U>
-    static T&& cast(U&& obj) {
-        return obj;
-    }
-    #endif
-#else
-
-    template<typename U>
-    static decltype(auto) cast(U&& obj) {
-        return std::forward<U>(obj);
-    }
-
-#endif
+    template<typename> static T cast(T obj) { return std::forward<T>(obj); }
 };
 
 template<typename T>
