@@ -569,7 +569,10 @@ struct argument_traits {
     //     return std::forward<U>(obj);
     // }
 
-    template<typename> static T cast(T obj) { return std::forward<T>(obj); }
+    template<typename>
+    static T cast(T obj) {
+        return std::forward<T>(obj);
+    }
 };
 
 template<typename T>

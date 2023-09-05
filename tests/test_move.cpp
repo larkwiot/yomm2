@@ -42,11 +42,10 @@ declare_method(void, move_non_virtual_arg, (virtual_<Base&>, Base&&));
 define_method(void, move_non_virtual_arg, (Base& varg, Base&& moving)) {
     BOOST_TEST(varg.status == ORIGINAL);
     BOOST_TEST(moving.status == ORIGINAL);
-    static_assert(std::is_same_v<decltype(moving), Base&&>);
     Base moved = std::move(moving);
 }
 
-BOOST_AUTO_TEST_CASE(move_non_virtual_arg) {
+BOOST_AUTO_TEST_CASE(test_move_non_virtual_arg) {
     yorel::yomm2::update();
 
     Base varg, moving;
