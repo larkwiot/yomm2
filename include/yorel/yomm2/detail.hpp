@@ -564,11 +564,6 @@ struct argument_traits {
         return &typeid(arg);
     }
 
-    // template<typename U>
-    // static decltype(auto) cast(U&& obj) {
-    //     return std::forward<U>(obj);
-    // }
-
     template<typename>
     static T cast(T obj) {
         return std::forward<T>(obj);
