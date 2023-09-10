@@ -24,31 +24,13 @@ struct Derived : Base {
     using Base::Base;
 };
 
-struct Unmoveable {
-    int id;
-    Status status;
-    Unmoveable(int id) : id(id), status(ORIGINAL) {
-    }
-    Unmoveable(const Unmoveable& other) : id(other.id), status(COPY) {
-    }
-    Unmoveable(Unmoveable&&) = delete;
-};
-
-static_assert(std::is_move_constructible_v<Base>);
-static_assert(std::is_move_constructible_v<Derived>);
-static_assert(!std::is_move_constructible_v<Unmoveable>);
-
-#if 1
-
 // -----------------------------------------------------------------------------
 // Test test apparatus.
-
-void test_unmoveable_value(Unmoveable) {
-}
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(
     test_moveable, Class, BOOST_IDENTITY_TYPE((std::tuple<Base, Derived>))) {
     Class a(1);
+
     BOOST_REQUIRE(a.status == ORIGINAL);
 
     Class b = a;
@@ -58,10 +40,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(
     Class c = std::move(a);
     BOOST_REQUIRE(a.status == DEAD);
     BOOST_REQUIRE(c.status == MOVED);
-
-    Unmoveable value(1);
-    test_unmoveable_value(value);
-    test_unmoveable_value(Unmoveable(1));
 }
 
 // -----------------------------------------------------------------------------
@@ -108,5 +86,3 @@ struct yomm2_update {
 };
 
 BOOST_TEST_GLOBAL_FIXTURE(yomm2_update);
-
-#endif

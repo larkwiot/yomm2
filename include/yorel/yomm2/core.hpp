@@ -469,8 +469,6 @@ class virtual_ptr<Class, Policy, false>
     using base = virtual_ptr_aux<Class, Policy, Class&>;
 
   public:
-    // using virtual_ptr_aux<Class, Policy>::virtual_ptr_aux;
-
     template<class Other>
     virtual_ptr(Other& obj) : base(obj, this->dynamic_method_table(obj)) {
     }
