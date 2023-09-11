@@ -135,7 +135,7 @@ struct runtime : runtime_data {
     void update();
 
     void augment_classes();
-    void calculate_conforming_classes(rt_class& cls);
+    void calculate_covariant_classes(rt_class& cls);
     void augment_methods();
     std::vector<rt_class*> layer_classes();
     void allocate_slots();
@@ -441,11 +441,11 @@ void runtime<Policy>::augment_classes() {
     }
 
     for (auto& rtc : classes) {
-        calculate_conforming_classes(rtc);
+        calculate_covariant_classes(rtc);
     }
 
     if constexpr (trace_enabled) {
-        ++trace << "Inheritance:\n";
+        ++trace << "Inheritance lattice:\n";
         for (auto& rtc : classes) {
             indent YOMM2_GENSYM(trace);
             ++trace << rtc.name() << "\n";
@@ -460,7 +460,7 @@ void runtime<Policy>::augment_classes() {
 }
 
 template<class Policy>
-void runtime<Policy>::calculate_conforming_classes(rt_class& cls) {
+void runtime<Policy>::calculate_covariant_classes(rt_class& cls) {
     if (!cls.covariant_classes.empty()) {
         return;
     }
@@ -469,7 +469,7 @@ void runtime<Policy>::calculate_conforming_classes(rt_class& cls) {
 
     for (auto derived : cls.direct_derived) {
         if (derived->covariant_classes.empty()) {
-            calculate_conforming_classes(*derived);
+            calculate_covariant_classes(*derived);
         }
 
         std::copy(
