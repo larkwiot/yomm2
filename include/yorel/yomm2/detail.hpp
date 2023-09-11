@@ -890,10 +890,6 @@ inline stdostream& operator<<(stdostream& os, T* value) {
     return os;
 }
 
-inline stdostream& operator<<(stdostream& os, decltype(std::setw(0)) value) {
-    return os;
-}
-
 inline stdostream& operator<<(stdostream& os, size_t value) {
     if (os.stream) {
         std::array<char, 20> str;
