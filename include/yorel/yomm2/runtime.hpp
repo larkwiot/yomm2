@@ -48,7 +48,7 @@ struct rt_class {
     std::vector<rt_class*> transitive_bases;
     std::vector<rt_class*> direct_bases;
     std::vector<rt_class*> direct_derived;
-    std::unordered_set<rt_class*> covariant_classes;
+    std::unordered_set<rt_class*> compatible_classes;
     std::vector<rt_arg> used_by_vp;
     int next_slot{0};
     int first_used_slot{-1};
@@ -135,7 +135,7 @@ struct runtime : runtime_data {
     void update();
 
     void augment_classes();
-    void calculate_covariant_classes(rt_class& cls);
+    void calculate_compatible_classes(rt_class& cls);
     void augment_methods();
     std::vector<rt_class*> layer_classes();
     void allocate_slots();
@@ -441,7 +441,7 @@ void runtime<Policy>::augment_classes() {
     }
 
     for (auto& rtc : classes) {
-        calculate_covariant_classes(rtc);
+        calculate_compatible_classes(rtc);
     }
 
     if constexpr (trace_enabled) {
@@ -449,33 +449,34 @@ void runtime<Policy>::augment_classes() {
         for (auto& rtc : classes) {
             indent YOMM2_GENSYM(trace);
             ++trace << rtc.name() << "\n";
+
             {
                 indent YOMM2_GENSYM(trace);
-                ++trace << "bases:     " << rtc.direct_bases << "\n";
-                ++trace << "derived:   " << rtc.direct_derived << "\n";
-                ++trace << "covariant: " << rtc.covariant_classes << "\n";
+                ++trace << "bases:      " << rtc.direct_bases << "\n";
+                ++trace << "derived:    " << rtc.direct_derived << "\n";
+                ++trace << "compatible: " << rtc.compatible_classes << "\n";
             }
         }
     }
 }
 
 template<class Policy>
-void runtime<Policy>::calculate_covariant_classes(rt_class& cls) {
-    if (!cls.covariant_classes.empty()) {
+void runtime<Policy>::calculate_compatible_classes(rt_class& cls) {
+    if (!cls.compatible_classes.empty()) {
         return;
     }
 
-    cls.covariant_classes.insert(&cls);
+    cls.compatible_classes.insert(&cls);
 
     for (auto derived : cls.direct_derived) {
-        if (derived->covariant_classes.empty()) {
-            calculate_covariant_classes(*derived);
+        if (derived->compatible_classes.empty()) {
+            calculate_compatible_classes(*derived);
         }
 
         std::copy(
-            derived->covariant_classes.begin(),
-            derived->covariant_classes.end(),
-            std::inserter(cls.covariant_classes, cls.covariant_classes.end()));
+            derived->compatible_classes.begin(),
+            derived->compatible_classes.end(),
+            std::inserter(cls.compatible_classes, cls.compatible_classes.end()));
     }
 }
 
@@ -723,9 +724,9 @@ void runtime<Policy>::build_dispatch_tables() {
                         << vp->name() << "\n";
                 indent YOMM2_GENSYM(trace);
 
-                for (auto covariant_classes : vp->covariant_classes) {
+                for (auto compatible_classes : vp->compatible_classes) {
                     ++trace << "specs applicable to "
-                            << covariant_classes->name() << "\n";
+                            << compatible_classes->name() << "\n";
                     bitvec mask;
                     mask.resize(m.specs.size());
 
@@ -733,9 +734,9 @@ void runtime<Policy>::build_dispatch_tables() {
                     indent YOMM2_GENSYM(trace);
 
                     for (auto& spec : m.specs) {
-                        if (spec.vp[dim]->covariant_classes.find(
-                                covariant_classes) !=
-                            spec.vp[dim]->covariant_classes.end()) {
+                        if (spec.vp[dim]->compatible_classes.find(
+                                compatible_classes) !=
+                            spec.vp[dim]->compatible_classes.end()) {
                             ++trace << spec.info->name << "\n";
                             mask[spec_index] = 1;
                         }
@@ -743,9 +744,9 @@ void runtime<Policy>::build_dispatch_tables() {
                     }
 
                     auto& group = dim_group[mask];
-                    group.classes.push_back(covariant_classes);
+                    group.classes.push_back(compatible_classes);
                     group.has_concrete_classes = group.has_concrete_classes ||
-                        !covariant_classes->is_abstract;
+                        !compatible_classes->is_abstract;
 
                     ++trace << "-> mask: " << mask << "\n";
                 }
@@ -1146,7 +1147,7 @@ void runtime<Policy>::optimize() {
         auto slot = m.slots[0];
 
         if (m.arity() == 1) {
-            for (auto cls : m.vp[0]->covariant_classes) {
+            for (auto cls : m.vp[0]->compatible_classes) {
                 auto pf = m.dispatch_table[(*cls->method_table)[slot].i];
                 if constexpr (trace_enabled) {
                     ++trace << cls->name() << " mtbl[" << slot << "] = " << pf
@@ -1156,7 +1157,7 @@ void runtime<Policy>::optimize() {
                 (*cls->method_table)[slot].pf = pf;
             }
         } else {
-            for (auto cls : m.vp[0]->covariant_classes) {
+            for (auto cls : m.vp[0]->compatible_classes) {
                 auto pw = m.gv_dispatch_table + (*cls->method_table)[slot].i;
 
                 if constexpr (trace_enabled) {
@@ -1205,12 +1206,12 @@ bool runtime<Policy>::is_more_specific(const rt_spec* a, const rt_spec* b) {
 
     for (; a_iter != a_last; ++a_iter, ++b_iter) {
         if (*a_iter != *b_iter) {
-            if ((*b_iter)->covariant_classes.find(*a_iter) !=
-                (*b_iter)->covariant_classes.end()) {
+            if ((*b_iter)->compatible_classes.find(*a_iter) !=
+                (*b_iter)->compatible_classes.end()) {
                 result = true;
             } else if (
-                (*a_iter)->covariant_classes.find(*b_iter) !=
-                (*a_iter)->covariant_classes.end()) {
+                (*a_iter)->compatible_classes.find(*b_iter) !=
+                (*a_iter)->compatible_classes.end()) {
                 return false;
             }
         }
@@ -1227,8 +1228,8 @@ bool runtime<Policy>::is_base(const rt_spec* a, const rt_spec* b) {
 
     for (; a_iter != a_last; ++a_iter, ++b_iter) {
         if (*a_iter != *b_iter) {
-            if ((*a_iter)->covariant_classes.find(*b_iter) ==
-                (*a_iter)->covariant_classes.end()) {
+            if ((*a_iter)->compatible_classes.find(*b_iter) ==
+                (*a_iter)->compatible_classes.end()) {
                 return false;
             } else {
                 result = true;

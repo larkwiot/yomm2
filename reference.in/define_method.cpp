@@ -29,7 +29,7 @@ Add a definition to a method.
 Locate a method with the same name, with a signature compatible with
 `method-parameter-list`, and add the definition to the method's list of
 definitions. The method must exist and must be unique. `return-type` must be
-covariant with the method's return type. `return-type` may be `auto`.
+compatible with the method's return type. `return-type` may be `auto`.
 
 The types of the arguments must _not_ be decorated with `virtual_`.
 
