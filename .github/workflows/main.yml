@@ -42,12 +42,11 @@ jobs:
       - name: Unit Tests
         run: |
           cd build
-          ctest --rerun-failed --output-on-failure .
+          YOMM2_TRACE=1 ctest --rerun-failed --output-on-failure .
       - name: Examples
         run: |
-          pwd
           cd build/examples
-          find . -type f -executable -exec {} \;
+          YOMM2_TRACE=1 find . -type f -executable -exec {} \;
   ubuntu-shared:
     runs-on: ubuntu-latest
     strategy:
