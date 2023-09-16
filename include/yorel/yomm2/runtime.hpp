@@ -1086,9 +1086,10 @@ void runtime<Policy>::install_gv() {
 
             if constexpr (trace_enabled) {
                 if (pass) {
-                    ++trace << rflush(4, Policy::context.gv.size()) << " "
-                            << &*Policy::context.gv.end()
-                            << " dispatch table for " << m.info->name << "\n";
+                    ++trace
+                        << rflush(4, Policy::context.gv.size()) << " "
+                        << Policy::context.gv.data() + Policy::context.gv.size()
+                        << " dispatch table for " << m.info->name << "\n";
                 }
             }
 
@@ -1135,8 +1136,7 @@ void runtime<Policy>::install_gv() {
     }
 
     ++trace << rflush(4, Policy::context.gv.size()) << " "
-            << (Policy::context.gv.empty() ? nullptr
-                                           : &*Policy::context.gv.end())
+            << Policy::context.gv.data() + Policy::context.gv.size()
             << " end\n";
 }
 
