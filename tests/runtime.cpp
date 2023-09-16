@@ -4,7 +4,7 @@
 #include <yorel/yomm2/keywords.hpp>
 #include <yorel/yomm2/runtime.hpp>
 
-#include "test_policy.hpp"
+#include "test_helpers.hpp"
 
 #define BOOST_TEST_MODULE runtime
 #include <boost/test/included/unit_test.hpp>

@@ -1,5 +1,5 @@
-#ifndef YOMM2_TEST_POLICY_INCLUDED
-#define YOMM2_TEST_POLICY_INCLUDED
+#ifndef YOMM2_TEST_HELPERS_INCLUDED
+#define YOMM2_TEST_HELPERS_INCLUDED
 
 #include <yorel/yomm2/core.hpp>
 
@@ -14,5 +14,11 @@ yorel::yomm2::catalog test_policy_<Key, BasePolicy>::catalog;
 
 template<int Key, class BasePolicy>
 yorel::yomm2::context test_policy_<Key, BasePolicy>::context;
+
+struct yomm2_update {
+    yomm2_update() {
+        yorel::yomm2::update();
+    }
+};
 
 #endif

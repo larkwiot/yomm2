@@ -476,7 +476,8 @@ void runtime<Policy>::calculate_compatible_classes(rt_class& cls) {
         std::copy(
             derived->compatible_classes.begin(),
             derived->compatible_classes.end(),
-            std::inserter(cls.compatible_classes, cls.compatible_classes.end()));
+            std::inserter(
+                cls.compatible_classes, cls.compatible_classes.end()));
     }
 }
 
@@ -1134,7 +1135,9 @@ void runtime<Policy>::install_gv() {
     }
 
     ++trace << rflush(4, Policy::context.gv.size()) << " "
-            << &*Policy::context.gv.end() << " end\n";
+            << (Policy::context.gv.empty() ? nullptr
+                                           : &*Policy::context.gv.end())
+            << " end\n";
 }
 
 template<class Policy>

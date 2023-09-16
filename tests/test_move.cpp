@@ -1,5 +1,7 @@
 #include <yorel/yomm2/keywords.hpp>
 
+#include "test_helpers.hpp"
+
 #define BOOST_TEST_MODULE yomm2
 #include <boost/test/included/unit_test.hpp>
 #include <boost/utility/identity_type.hpp>
@@ -78,11 +80,5 @@ BOOST_AUTO_TEST_CASE(test_move_virtual_arg) {
 // Global initialization.
 
 register_classes(Base, Derived);
-
-struct yomm2_update {
-    yomm2_update() {
-        yorel::yomm2::update();
-    }
-};
 
 BOOST_TEST_GLOBAL_FIXTURE(yomm2_update);

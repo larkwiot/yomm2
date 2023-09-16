@@ -558,6 +558,11 @@ class virtual_ptr<Class, Policy, true>
     }
 };
 
+template<class Class>
+virtual_ptr(Class&) -> virtual_ptr<
+    Class, default_policy,
+    detail::virtual_ptr_traits<Class, default_policy>::is_smart_ptr>;
+
 template<class Class, class Policy = default_policy>
 using virtual_shared_ptr = virtual_ptr<std::shared_ptr<Class>, Policy>;
 
