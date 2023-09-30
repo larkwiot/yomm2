@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        compiler: [g++-11, g++-12]
+        compiler: [g++-13]
         standard: [17, 20]
         config: [Debug, Release]
     steps:
