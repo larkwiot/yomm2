@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         # compiler: [g++-13]
-        compiler: [clang++-16]
+        compiler: [clang++-15]
         standard: [17, 20]
         config: [Debug, Release]
     steps:
@@ -22,12 +22,12 @@ jobs:
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
           sudo apt update
           sudo apt install g++-13
-      - name: Install clang-16
-        if: ${{ matrix.compiler == 'clang++-16' }}
+      - name: Install clang-15
+        if: ${{ matrix.compiler == 'clang++-15' }}
         run: |
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
           sudo apt update
-          sudo apt install clang-16
+          sudo apt install clang-15
       - name: Install Boost
         if: ${{ matrix.standard == 17 }}
         run: |
